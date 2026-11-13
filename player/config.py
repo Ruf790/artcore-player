@@ -27,7 +27,11 @@ DEFAULTS = {
     "check_updates": True,
     "last_update_check": 0,
     "update_notified": "",
-    "reopen":        "",            # the file that was open when the player updated itself        # time label shows -remaining instead of the duration
+    "reopen":        "",
+    "smooth":        False,         # smooth motion: display-resample + interpolation
+    "picture":       {"brightness": 0, "contrast": 0, "saturation": 0, "gamma": 0},
+    "mini_geometry": [],            # x, y, w, h of the mini player
+    "intros":        {},            # folder → {"a": start, "b": end, "auto": bool}            # the file that was open when the player updated itself        # time label shows -remaining instead of the duration
     "geometry":      "",
     "last_dir":      "",
     "recent":        [],            # most recent first

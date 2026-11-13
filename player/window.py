@@ -146,6 +146,20 @@ class PlayerWindow(QMainWindow):
         self._hover = (-1.0, -1)              # bucket under the mouse, x
         self.toast = Toast(self.stage)
         self.pulse = Pulse(self.stage)
+        self.skip_btn = QPushButton(style.icon("fa6s.forward", "#ffffff"), "  " + t("skip_intro"), self.stage)
+        self.skip_btn.setObjectName("primary")
+        self.skip_btn.setCursor(Qt.PointingHandCursor)
+        self.skip_btn.setFocusPolicy(Qt.NoFocus)
+        self.skip_btn.clicked.connect(self.skip_intro)
+        self.skip_btn.hide()
+        self._intro_done = False              # skipped (or left) once for this file
+        self.mini = False
+        self._normal_geo = None
+        from PySide6.QtWidgets import QSizeGrip
+        self._grip = QSizeGrip(self.stage)            # resizing the frameless mini player
+        self._grip.setFixedSize(18, 18)
+        self._grip.setStyleSheet("background: transparent;")
+        self._grip.hide()
         self.plpanel = PlaylistPanel(self.stage)
         self.plpanel.play.connect(self.play_index)
         self.plpanel.close_btn.clicked.connect(lambda: self.toggle_playlist(False))
@@ -163,6 +177,8 @@ class PlayerWindow(QMainWindow):
 
         if cfg.get("on_top"):
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.apply_picture()
+        QTimer.singleShot(0, self.apply_smooth)
         self._set_idle_view(True)
         self.layout_overlays()
 
@@ -310,7 +326,11 @@ class PlayerWindow(QMainWindow):
         self.plpanel.setGeometry(w - pw, 0, pw, h - (ch if self.ctl.isVisible() else 0))
         self.stage.toast_top = 70 if self.top.isVisible() else 24
         self.pulse.move((w - self.pulse.width()) // 2, (h - self.pulse.height()) // 2)
-        for wdg in (self.top, self.ctl, self.plpanel, self.bubble, self.toast, self.pulse):
+        self._grip.move(w - 18, h - 18)
+        self._grip.raise_()
+        self.skip_btn.adjustSize()
+        self.skip_btn.move(w - self.skip_btn.width() - 24, h - (ch if self.ctl.isVisible() else 0) - self.skip_btn.height() - 18)
+        for wdg in (self.top, self.ctl, self.plpanel, self.bubble, self.toast, self.pulse, self.skip_btn):
             wdg.raise_()
 
     # ── idle: hide controls and the cursor while watching ─────
@@ -323,7 +343,7 @@ class PlayerWindow(QMainWindow):
         if not self.path:
             return
         if not self.ctl.isVisible():
-            self.top.setVisible(True)
+            self.top.setVisible(not self.mini)
             self.ctl.setVisible(True)
             self.layout_overlays()
         self._sub_room(True)
@@ -476,6 +496,10 @@ class PlayerWindow(QMainWindow):
         self._clear_badges()
         self._chapters = []
         self.chapter_lbl.hide()
+        self._intro_done = False
+        self.skip_btn.hide()
+        self.seekbar.intro = None
+        self.clear_ab(quiet=True)
         self.mpv.pause = False
         self.disc = disc_of(self.path)
         self.thumbs.set_file(self.path, False)
@@ -631,6 +655,27 @@ class PlayerWindow(QMainWindow):
         else:
             right = fmt_time(dur, force_h)
         self.time_lbl.setText(f"{fmt_time(self.position, force_h)} / {right}")
+        self._check_intro()
+
+    def _check_intro(self):
+        intro = self.intro_for(self.path)
+        self.seekbar.intro = (intro["a"], intro["b"]) if intro else None
+        if not intro or self._intro_done or self.disc:
+            self.skip_btn.hide()
+            return
+        a, b = intro["a"], intro["b"]
+        inside = a - 0.5 <= self.position < b - 1
+        if inside and intro.get("auto"):
+            self.skip_intro(auto=True)
+        elif inside:
+            if not self.skip_btn.isVisible():
+                self.skip_btn.show()
+                self.layout_overlays()
+        else:
+            if self.skip_btn.isVisible():
+                self.skip_btn.hide()
+            if self.position >= b:
+                self._intro_done = True
 
     def _toggle_remaining(self):
         self.cfg["remaining_time"] = not self.cfg.get("remaining_time")
@@ -837,6 +882,9 @@ class PlayerWindow(QMainWindow):
             self.set_speed(nxt[0] if up else nxt[-1])
 
     def toggle_fullscreen(self):
+        if self.mini:                          # double-click on the mini player: back to the big window
+            self.toggle_mini()
+            return
         if self.isFullScreen():
             self.showMaximized() if self._was_maximized else self.showNormal()
             self.b_full.setIcon(style.icon("fa6s.expand", "#ffffff"))
@@ -893,6 +941,220 @@ class PlayerWindow(QMainWindow):
         sel = next((tr for tr in self._get("track-list", []) if tr.get("type") == kind and tr.get("selected")), None)
         label = self._track_label(sel) if sel else t("off")
         self.toast.show_text((t("audio") if kind == "audio" else t("subs")) + ": " + label, 1500)
+
+    # ── smooth motion / picture ──────────────────────────────
+    def apply_smooth(self):
+        on = bool(self.cfg.get("smooth"))
+        try:
+            if on:
+                scr = self.screen() or QApplication.primaryScreen()
+                fps = float(scr.refreshRate()) if scr else 60.0
+                self.mpv["display-fps-override"] = fps if fps > 20 else 60.0
+                self.mpv.video_sync = "display-resample"
+                self.mpv.interpolation = True
+                self.mpv.tscale = "oversample"
+            else:
+                self.mpv.video_sync = "audio"
+                self.mpv.interpolation = False
+        except Exception:
+            pass
+
+    def toggle_smooth(self):
+        self.cfg["smooth"] = not self.cfg.get("smooth")
+        config.save(self.cfg)
+        self.apply_smooth()
+        self.toast.show_text(t("smooth_on") if self.cfg["smooth"] else t("smooth_off"), 1600)
+
+    def moveEvent(self, e):
+        super().moveEvent(e)
+        if self.cfg.get("smooth"):              # another monitor may have another refresh rate
+            scr = self.screen()
+            fps = float(scr.refreshRate()) if scr else 0
+            if fps > 20 and abs(fps - getattr(self, "_fps", 0)) > 0.5:
+                self._fps = fps
+                try:
+                    self.mpv["display-fps-override"] = fps
+                except Exception:
+                    pass
+
+    PICTURE = ("brightness", "contrast", "saturation", "gamma")
+
+    def apply_picture(self):
+        pic = self.cfg.get("picture", {}) or {}
+        for k in self.PICTURE:
+            try:
+                setattr(self.mpv, k, int(pic.get(k, 0)))
+            except Exception:
+                pass
+
+    def picture_dialog(self):
+        from .dialogs import PictureDialog
+        old = dict(self.cfg.get("picture", {}) or {})
+        d = PictureDialog(self.cfg, self)
+        d.changed.connect(self.apply_picture)
+        if not d.exec():
+            self.cfg["picture"] = old
+            self.apply_picture()
+        config.save(self.cfg)
+
+    # ── mini player ──────────────────────────────────────────
+    def toggle_mini(self):
+        from PySide6.QtCore import QRect
+        if self.isFullScreen():
+            self.toggle_fullscreen()
+        geo_list = self.cfg.get("mini_geometry") or []
+        if not self.mini:
+            self._normal_geo = (self.geometry(), self.isMaximized())
+            self.mini = True
+            self.setWindowFlag(Qt.FramelessWindowHint, True)
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            self.setMinimumSize(240, 135)
+            self.showNormal()
+            scr = (self.screen() or QApplication.primaryScreen()).availableGeometry()
+            if len(geo_list) == 4 and scr.intersects(QRect(*geo_list)):
+                self.setGeometry(QRect(*geo_list))
+            else:
+                vp = self._get("video-params", {}) or {}
+                w = 480
+                h = int(w * int(vp.get("dh") or 9) / max(1, int(vp.get("dw") or 16)))
+                self.setGeometry(scr.right() - w - 24, scr.bottom() - h - 24, w, h)
+            self.top.hide()
+            self._mini_controls(True)
+            self.video.drag_window = True
+            self._grip.show()
+        else:
+            self.cfg["mini_geometry"] = [self.x(), self.y(), self.width(), self.height()]
+            self.mini = False
+            self._mini_controls(False)
+            self.video.drag_window = False
+            self._grip.hide()
+            self.setWindowFlag(Qt.FramelessWindowHint, False)
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, bool(self.cfg.get("on_top")))
+            self.setMinimumSize(560, 340)
+            geo, maxed = self._normal_geo or (None, False)
+            self.show()
+            if geo is not None:
+                self.setGeometry(geo)
+            if maxed:
+                self.showMaximized()
+        self.show()
+        config.save(self.cfg)
+        self.layout_overlays()
+        self.poke()
+
+    def _mini_controls(self, mini: bool):
+        """The mini player keeps only what fits: seek bar, play, time, volume button, back to big."""
+        for b in (self.b_prev, self.b_back, self.b_fwd, self.b_next, self.vol, self.b_speed, self.b_audio,
+                  self.b_subs, self.b_list, self.b_more):
+            b.setVisible(not mini)
+        self.b_full.setIcon(style.icon("fa6s.up-right-and-down-left-from-center" if mini else "fa6s.expand", "#ffffff"))
+        self.b_full.setToolTip(t("mini_back") + " (Esc)" if mini else t("fullscreen") + " (F)")
+        self.ctl.layout().setContentsMargins(8, 18, 8, 4) if mini else self.ctl.layout().setContentsMargins(16, 30, 16, 10)
+
+    # ── opening titles of series ─────────────────────────────
+    def _folder_of(self, path: str) -> str:
+        return os.path.normcase(os.path.dirname(os.path.abspath(path))) if path else ""
+
+    def intro_for(self, path: str) -> dict | None:
+        it = (self.cfg.get("intros", {}) or {}).get(self._folder_of(path))
+        if it and it.get("b", 0) > it.get("a", 0):
+            return it
+        return None
+
+    def mark_intro(self, which: str):
+        if not self.path:
+            return
+        key = self._folder_of(self.path)
+        intros = self.cfg.setdefault("intros", {})
+        it = dict(intros.get(key) or {"a": 0.0, "b": 0.0, "auto": False})
+        it[which] = round(self.position, 1)
+        if which == "a" and it.get("b", 0) <= it["a"]:
+            it["b"] = 0.0
+        intros[key] = it
+        config.save(self.cfg)
+        self._intro_done = True                  # don't jump while marking
+        if it["b"] > it["a"]:
+            self.toast.show_text(t("intro_saved", fmt_time(it["a"]), fmt_time(it["b"])), 3000)
+        else:
+            self.toast.show_text(t("intro_start_set", fmt_time(it["a"])), 2500)
+        self._check_intro()
+
+    def forget_intro(self):
+        (self.cfg.get("intros", {}) or {}).pop(self._folder_of(self.path), None)
+        config.save(self.cfg)
+        self.seekbar.intro = None
+        self.skip_btn.hide()
+        self.toast.show_text(t("intro_forgot"))
+
+    def toggle_intro_auto(self):
+        it = self.intro_for(self.path)
+        if not it:
+            return
+        it["auto"] = not it.get("auto")
+        config.save(self.cfg)
+        self.toast.show_text(t("intro_auto_on") if it["auto"] else t("intro_auto_off"))
+
+    def skip_intro(self, auto: bool = False):
+        it = self.intro_for(self.path)
+        if not it:
+            return
+        self._intro_done = True
+        self.skip_btn.hide()
+        self.seek_abs(it["b"])
+        self.toast.show_text(t("intro_skipped"), 1500)
+
+    def _fill_intro_menu(self, m: QMenu):
+        it = self.intro_for(self.path)
+        m.addAction(style.icon("fa6s.flag"), t("intro_mark_a", fmt_time(self.position)), lambda: self.mark_intro("a"))
+        m.addAction(style.icon("fa6s.flag-checkered"), t("intro_mark_b", fmt_time(self.position)), lambda: self.mark_intro("b"))
+        if it:
+            m.addSeparator()
+            m.addAction(t("intro_current", fmt_time(it["a"]), fmt_time(it["b"]))).setEnabled(False)
+            a = m.addAction(t("intro_auto"), self.toggle_intro_auto)
+            a.setCheckable(True)
+            a.setChecked(bool(it.get("auto")))
+            m.addAction(style.icon("fa6s.trash"), t("intro_forget"), self.forget_intro)
+        m.addSeparator()
+        m.addAction(t("intro_hint")).setEnabled(False)
+
+    # ── audio delay / A-B repeat ─────────────────────────────
+    def shift_audio(self, v: float | None):
+        cur = float(self._get("audio-delay", 0))
+        self.mpv.audio_delay = 0 if v is None else round(cur + v, 3)
+        self.toast.show_text(t("audio_delay", f"{float(self._get('audio-delay', 0)):+.2f}"), 1300)
+
+    def ab_step(self):
+        """B: set A → set B (repeat starts) → clear."""
+        if not self.path:
+            return
+        a, b = self.seekbar.loop
+        pos = self.position
+        if a is None:
+            self.mpv["ab-loop-a"] = pos
+            self.seekbar.loop = (pos, None)
+            self.toast.show_text(t("ab_a", fmt_time(pos)), 1800)
+        elif b is None:
+            if pos <= a + 0.3:
+                self.toast.show_text(t("ab_after_a"), 1800)
+                return
+            self.mpv["ab-loop-b"] = pos
+            self.seekbar.loop = (a, pos)
+            self.toast.show_text(t("ab_on", fmt_time(a), fmt_time(pos)), 2200)
+        else:
+            self.clear_ab()
+        self.seekbar.update()
+
+    def clear_ab(self, quiet: bool = False):
+        try:
+            self.mpv["ab-loop-a"] = "no"
+            self.mpv["ab-loop-b"] = "no"
+        except Exception:
+            pass
+        had = self.seekbar.loop[0] is not None
+        self.seekbar.loop = (None, None)
+        self.seekbar.update()
+        if had and not quiet:
+            self.toast.show_text(t("ab_off"), 1300)
 
     # ── menus ─────────────────────────────────────────────────
     @staticmethod
@@ -989,6 +1251,10 @@ class PlayerWindow(QMainWindow):
         self._fill_tracks(m, "audio")
         m.addSeparator()
         self._fill_sound_menu(m.addMenu(style.icon("fa6s.wave-square"), t("sound")))
+        d = m.addMenu(style.icon("fa6s.clock"), t("audio_delay", f"{float(self._get('audio-delay', 0)):+.2f}"))
+        for v, txt in ((-0.1, "−0.1 s  (Ctrl+Z)"), (-0.05, "−0.05 s"), (0.05, "+0.05 s"), (0.1, "+0.1 s  (Ctrl+X)")):
+            d.addAction(txt, lambda v=v: self.shift_audio(v))
+        d.addAction(t("reset"), lambda: self.shift_audio(None))
         m.addAction(style.icon("fa6s.file-audio"), t("load_audio"), self._load_audio)
 
     def _fill_subs_menu(self, m: QMenu):
@@ -1049,6 +1315,19 @@ class PlayerWindow(QMainWindow):
         if self.disc:
             self._fill_titles_menu(m.addMenu(style.icon("fa6s.compact-disc"), t("disc_titles")))
             m.addSeparator()
+        if self.path and not self.disc:
+            self._fill_intro_menu(m.addMenu(style.icon("fa6s.forward"), t("intro_menu")))
+        a, b = self.seekbar.loop
+        ab_txt = t("ab_menu_set_a") if a is None else t("ab_menu_set_b") if b is None else t("ab_menu_clear")
+        m.addAction(style.icon("fa6s.repeat"), ab_txt + "\tB", self.ab_step)
+        m.addSeparator()
+        m.addAction(style.icon("fa6s.circle-half-stroke"), t("picture") + "…\tV", self.picture_dialog)
+        sm = m.addAction(style.icon("fa6s.wand-magic-sparkles"), t("smooth") + "\tH", self.toggle_smooth)
+        sm.setCheckable(True)
+        sm.setChecked(bool(self.cfg.get("smooth")))
+        mi = m.addAction(style.icon("fa6s.clone"), t("mini") + "\tCtrl+M", self.toggle_mini)
+        mi.setCheckable(True)
+        mi.setChecked(self.mini)
         asp = m.addMenu(style.icon("fa6s.crop"), t("aspect"))
         cur = str(self._get("video-aspect-override", "-1"))
         for val, txt in (("-1", t("aspect_auto")), ("16:9", "16:9"), ("4:3", "4:3"), ("2.35:1", "2.35:1"),
@@ -1222,11 +1501,13 @@ class PlayerWindow(QMainWindow):
         elif k in (Qt.Key_F, Qt.Key_Return, Qt.Key_Enter) and not ctrl:
             self.toggle_fullscreen()
         elif k == Qt.Key_Escape:
-            if self.isFullScreen():
+            if self.mini:
+                self.toggle_mini()
+            elif self.isFullScreen():
                 self.toggle_fullscreen()
             elif self.plpanel.isVisible():
                 self.toggle_playlist(False)
-        elif k == Qt.Key_M:
+        elif k == Qt.Key_M and not ctrl:
             self.toggle_mute()
         elif k == Qt.Key_A:
             self.cycle("audio")
@@ -1234,10 +1515,23 @@ class PlayerWindow(QMainWindow):
             self.screenshot()
         elif k == Qt.Key_S:
             self.cycle("sub")
+        elif k == Qt.Key_Z and ctrl:
+            self.shift_audio(-0.1)
+        elif k == Qt.Key_X and ctrl:
+            self.shift_audio(0.1)
         elif k == Qt.Key_Z:
             self.shift_sub(-0.5 if not shift else -0.1)
         elif k == Qt.Key_X:
             self.shift_sub(0.5 if not shift else 0.1)
+        elif k == Qt.Key_M and ctrl:
+            self.toggle_mini()
+        elif k == Qt.Key_B:
+            self.ab_step()
+        elif k == Qt.Key_V:
+            self.picture_dialog()
+        elif k == Qt.Key_H:
+            self.toggle_smooth()
+
         elif k == Qt.Key_PageDown and not shift and self.chapter_step(1):
             pass                                   # chapters first; Shift+PgDn / N always go to the next file
         elif k == Qt.Key_PageUp and not shift and self.chapter_step(-1):

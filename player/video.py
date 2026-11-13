@@ -28,6 +28,9 @@ class VideoWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.NoFocus)
         self.setAttribute(Qt.WA_OpaquePaintEvent)
         self.frame.connect(self.update, Qt.QueuedConnection)
+        self.frameSwapped.connect(self._swapped)
+        self.drag_window = False            # mini player: dragging the picture moves the window
+        self._press = None
         # one click toggles pause, a double click goes fullscreen: wait to see which one it is
         self._click = QTimer(self)
         self._click.setSingleShot(True)
@@ -62,6 +65,14 @@ class VideoWidget(QOpenGLWidget):
         self.ctx.render(flip_y=True, opengl_fbo={"w": int(self.width() * r), "h": int(self.height() * r),
                                                  "fbo": self.defaultFramebufferObject()})
 
+    def _swapped(self):
+        """Tell mpv a frame reached the screen: needed for display-resample (smooth motion)."""
+        if self.ctx is not None:
+            try:
+                self.ctx.report_swap()
+            except Exception:
+                pass
+
     def shutdown(self):
         """Free the render context before mpv itself is terminated (with the GL context current)."""
         if self.ctx is not None:
@@ -78,6 +89,10 @@ class VideoWidget(QOpenGLWidget):
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             from PySide6.QtWidgets import QApplication
+            if self.drag_window:
+                win = self.window()
+                self._press = (e.globalPosition().toPoint(), win.pos(), False)
+                return
             self._click.start(QApplication.doubleClickInterval())
         elif e.button() == Qt.RightButton:
             self.context_menu.emit(e.globalPosition().toPoint())
@@ -88,7 +103,21 @@ class VideoWidget(QOpenGLWidget):
             self.double_clicked.emit()
 
     def mouseMoveEvent(self, e):
+        if self.drag_window and self._press is not None and e.buttons() & Qt.LeftButton:
+            start, wpos, _ = self._press
+            delta = e.globalPosition().toPoint() - start
+            if delta.manhattanLength() > 4:
+                self._press = (start, wpos, True)
+                self.window().move(wpos + delta)
         self.moved.emit()
+
+    def mouseReleaseEvent(self, e):
+        if self.drag_window and self._press is not None and e.button() == Qt.LeftButton:
+            dragged = self._press[2]
+            self._press = None
+            if not dragged:
+                from PySide6.QtWidgets import QApplication
+                self._click.start(QApplication.doubleClickInterval())
 
     def wheelEvent(self, e):
         d = e.angleDelta().y()
