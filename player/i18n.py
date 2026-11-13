@@ -1,0 +1,138 @@
+"""RU / EN strings."""
+from __future__ import annotations
+
+_lang = "ru"
+
+STRINGS = {
+    "start_sub":      ("Видеоплеер на движке mpv — 4K, HDR, любые дорожки и субтитры",
+                       "A video player on the mpv engine — 4K, HDR, any tracks and subtitles"),
+    "start_drop":     ("…или перетащите файл, папку или субтитры в окно", "…or drop a file, a folder or subtitles onto the window"),
+    "open_file":      ("Открыть файл", "Open file"),
+    "open_folder":    ("Открыть папку", "Open folder"),
+    "recent":         ("НЕДАВНИЕ", "RECENT"),
+    "resume_at":      ("остановились на {0}", "stopped at {0}"),
+    "media_files":    ("Видео и аудио", "Video and audio"),
+    "all_files":      ("Все файлы", "All files"),
+    "no_media":       ("В папке нет видео", "No videos in this folder"),
+    "playlist":       ("Плейлист", "Playlist"),
+    "playlist_n":     ("Плейлист · {0}", "Playlist · {0}"),
+    "close":          ("Закрыть", "Close"),
+    "close_file":     ("Закрыть файл", "Close file"),
+    "prev":           ("Предыдущий", "Previous"),
+    "next":           ("Следующий", "Next"),
+    "back10":         ("Назад 10 с", "Back 10 s"),
+    "fwd10":          ("Вперёд 10 с", "Forward 10 s"),
+    "play":           ("Воспроизвести", "Play"),
+    "pause":          ("Пауза", "Pause"),
+    "mute":           ("Без звука", "Mute"),
+    "time_tip":       ("Клик — показывать оставшееся время", "Click to show the remaining time"),
+    "speed":          ("Скорость", "Speed"),
+    "speed_v":        ("Скорость {0}×", "Speed {0}×"),
+    "normal_speed":   ("Обычная", "Normal"),
+    "audio":          ("Аудио", "Audio"),
+    "subs":           ("Субтитры", "Subtitles"),
+    "more":           ("Ещё", "More"),
+    "fullscreen":     ("Во весь экран", "Fullscreen"),
+    "off":            ("Выкл.", "Off"),
+    "forced":         ("принуд.", "forced"),
+    "external":       ("внешн.", "external"),
+    "no_audio":       ("Нет аудиодорожек", "No audio tracks"),
+    "no_subs":        ("Нет субтитров", "No subtitles"),
+    "load_subs":      ("Загрузить субтитры…", "Load subtitles…"),
+    "load_audio":     ("Загрузить аудиодорожку…", "Load audio track…"),
+    "sub_loaded":     ("Субтитры: {0}", "Subtitles: {0}"),
+    "sub_delay":      ("Задержка субтитров: {0} с", "Subtitle delay: {0} s"),
+    "sub_size":       ("Размер субтитров", "Subtitle size"),
+    "reset":          ("Сбросить", "Reset"),
+    "aspect":         ("Соотношение сторон", "Aspect ratio"),
+    "aspect_auto":    ("Авто", "Auto"),
+    "zoom":           ("Масштаб", "Zoom"),
+    "zoom_crop":      ("убрать чёрные полосы", "crop black bars"),
+    "on_top":         ("Поверх всех окон", "Always on top"),
+    "on_top_on":      ("Поверх всех окон", "Always on top"),
+    "on_top_off":     ("Обычное окно", "Normal window"),
+    "screenshot":     ("Скриншот", "Screenshot"),
+    "shot_saved":     ("Скриншот сохранён в {0}", "Screenshot saved to {0}"),
+    "shot_fail":      ("Не удалось сохранить скриншот: {0}", "Could not save the screenshot: {0}"),
+    "stats":          ("Информация о файле", "File info"),
+    "stats_na":       ("Информация недоступна", "Info is not available"),
+    "show_in_folder": ("Показать в папке", "Show in folder"),
+    "settings":       ("Настройки", "Settings"),
+    "keys":           ("Горячие клавиши", "Keyboard shortcuts"),
+    "volume_v":       ("Громкость {0} %", "Volume {0} %"),
+    "muted":          ("Звук выключен", "Muted"),
+    "resumed":        ("Продолжено с {0}  ·  Home — с начала", "Resumed at {0}  ·  Home — from the start"),
+    "from_start":     ("С начала", "From the start"),
+    "next_file":      ("Дальше: {0}", "Up next: {0}"),
+    "restart_lang":   ("Язык сменится после перезапуска плеера.", "The language changes after the player restarts."),
+    "set_lang":       ("Язык", "Language"),
+    "set_resume":     ("Продолжать с места остановки", "Resume where you stopped"),
+    "set_autonext":   ("Автоматически включать следующий файл папки (сериалы)", "Play the next file of the folder automatically (series)"),
+    "set_single":     ("Открывать файлы в уже запущенном плеере", "Open files in the running player"),
+    "set_hwdec":      ("Аппаратное декодирование", "Hardware decoding"),
+    "set_hwdec_hint": ("Видеокарта декодирует HEVC / AV1 / 4K без нагрузки на процессор. Выключите, если видите артефакты или зелёный экран.",
+                       "The graphics card decodes HEVC / AV1 / 4K without loading the CPU. Turn it off if you see artefacts or a green screen."),
+    "set_alang":      ("Языки аудио по приоритету", "Audio languages by priority"),
+    "set_slang":      ("Языки субтитров", "Subtitle languages"),
+    "set_slang_ph":   ("пусто — только принудительные", "empty — forced ones only"),
+    "set_shots":      ("Папка скриншотов", "Screenshot folder"),
+    "set_clear_hist": ("Очистить недавние и места остановки", "Clear recent files and resume positions"),
+    "about_line":     ("ArtCore Player {0} · движок mpv (libmpv) · GPL v3", "ArtCore Player {0} · mpv engine (libmpv) · GPL v3"),
+    "dbl_click":      ("двойной клик", "double-click"),
+    "wheel":          ("колесо", "wheel"),
+    "k_pause":        ("Пауза / воспроизведение", "Pause / play"),
+    "k_full":         ("Во весь экран", "Fullscreen"),
+    "k_esc":          ("Выйти из полноэкранного режима", "Leave fullscreen"),
+    "k_seek5":        ("Перемотка на 5 с", "Seek 5 s"),
+    "k_seek10":       ("Перемотка на 10 с", "Seek 10 s"),
+    "k_seek60":       ("Перемотка на 1 мин", "Seek 1 min"),
+    "k_percent":      ("Перейти на 0 … 90 %", "Jump to 0 … 90 %"),
+    "k_home":         ("С начала", "From the start"),
+    "k_frame":        ("Кадр вперёд / назад", "Frame forward / back"),
+    "k_vol":          ("Громкость", "Volume"),
+    "k_mute":         ("Без звука", "Mute"),
+    "k_audio":        ("Следующая аудиодорожка", "Next audio track"),
+    "k_subs":         ("Следующие субтитры", "Next subtitles"),
+    "k_subdelay":     ("Задержка субтитров −/+ 0.5 с (с Shift 0.1 с)", "Subtitle delay −/+ 0.5 s (0.1 s with Shift)"),
+    "k_speed":        ("Медленнее / быстрее / обычная скорость", "Slower / faster / normal speed"),
+    "k_prevnext":     ("Предыдущий / следующий файл", "Previous / next file"),
+    "k_playlist":     ("Плейлист", "Playlist"),
+    "k_ontop":        ("Поверх всех окон", "Always on top"),
+    "k_stats":        ("Информация о файле", "File info"),
+    "k_shot":         ("Скриншот", "Screenshot"),
+    "k_open":         ("Открыть файл", "Open file"),
+    "k_close":        ("Закрыть файл", "Close file"),
+    "k_settings":     ("Настройки", "Settings"),
+    "mpv_missing":    ("Не найден движок mpv (libmpv-2.dll).\n\nПереустановите ArtCore Player.\n\n{0}",
+                       "The mpv engine (libmpv-2.dll) was not found.\n\nReinstall ArtCore Player.\n\n{0}"),
+}
+
+LANGS = {
+    "rus": ("Русский", "Russian"), "ru": ("Русский", "Russian"), "eng": ("Английский", "English"), "en": ("Английский", "English"),
+    "ukr": ("Украинский", "Ukrainian"), "uk": ("Украинский", "Ukrainian"), "bul": ("Болгарский", "Bulgarian"),
+    "bg": ("Болгарский", "Bulgarian"), "ger": ("Немецкий", "German"), "deu": ("Немецкий", "German"),
+    "de": ("Немецкий", "German"), "fre": ("Французский", "French"), "fra": ("Французский", "French"),
+    "fr": ("Французский", "French"), "spa": ("Испанский", "Spanish"), "es": ("Испанский", "Spanish"),
+    "ita": ("Итальянский", "Italian"), "it": ("Итальянский", "Italian"), "jpn": ("Японский", "Japanese"),
+    "ja": ("Японский", "Japanese"), "kor": ("Корейский", "Korean"), "chi": ("Китайский", "Chinese"),
+    "zho": ("Китайский", "Chinese"), "pol": ("Польский", "Polish"), "por": ("Португальский", "Portuguese"),
+    "tur": ("Турецкий", "Turkish"), "und": ("Не указан", "Undefined"),
+}
+
+
+def set_lang(lang: str) -> None:
+    global _lang
+    _lang = lang if lang in ("ru", "en") else "ru"
+
+
+def t(key: str, *args) -> str:
+    pair = STRINGS.get(key)
+    s = (pair[0] if _lang == "ru" else pair[1]) if pair else key
+    for i, a in enumerate(args):
+        s = s.replace("{" + str(i) + "}", str(a))
+    return s
+
+
+def lang_name(code: str) -> str:
+    pair = LANGS.get(str(code).lower())
+    return (pair[0] if _lang == "ru" else pair[1]) if pair else str(code)
