@@ -3,7 +3,7 @@
 ; Expects the PyInstaller output in dist\ArtCorePlayer\.
 
 #define AppName      "ArtCore Player"
-#define AppVersion   "1.0.1"
+#define AppVersion   "1.1.0"
 #define AppPublisher "ArtCore"
 #define AppURL       "https://github.com/Ruf790/artcore-player"
 #define AppExe       "ArtCorePlayer.exe"
@@ -259,6 +259,8 @@ Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociation
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; silent update from the player itself: start it again afterwards
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 Filename: "ms-settings:defaultapps?registeredAppUser={#AppName}"; Description: "{cm:MakeDefault}"; Flags: shellexec nowait postinstall skipifsilent unchecked; Tasks: openwith
 
 [UninstallDelete]

@@ -8,19 +8,20 @@ import time
 from PySide6.QtCore import QObject, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCursor, QKeySequence
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMenu, QMessageBox,
-                               QSlider, QVBoxLayout, QWidget)
+                               QPushButton, QSlider, QVBoxLayout, QWidget)
 
 from . import APP_TITLE, AUDIO_EXT, DISC_EXT, SUB_EXT, VIDEO_EXT, VERSION, config, style, winint
 from .i18n import lang_name, t
 from .video import VideoWidget
-from .widgets import (Bubble, GradientPanel, Pulse, PlaylistPanel, SeekBar, StartPage, Toast, ctl_button,
+from . import audio
+from .widgets import (GradientPanel, Pulse, PlaylistPanel, SeekBar, SeekPreview, StartPage, Toast, ctl_button,
                       fmt_time)
 
 MEDIA_EXT = VIDEO_EXT + AUDIO_EXT
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0)
 OBSERVED = ("time-pos", "duration", "pause", "volume", "mute", "track-list", "chapter-list", "video-params",
             "audio-params", "eof-reached", "media-title", "speed", "demuxer-cache-state", "idle-active",
-            "aid", "sid", "path")
+            "aid", "sid", "path", "chapter")
 
 
 def natural_key(s: str):
@@ -71,6 +72,7 @@ class Bridge(QObject):
     prop = Signal(str, object)
     loaded = Signal()
     failed = Signal(int)                 # end-file with an error (mpv error code)
+    update = Signal(object, str)         # update check: info or None, error text
 
 
 class Stage(QWidget):
@@ -113,6 +115,10 @@ class PlayerWindow(QMainWindow):
         self.bridge.prop.connect(self._on_prop)
         self.bridge.loaded.connect(self._on_loaded)
         self.bridge.failed.connect(self._on_failed)
+        self.bridge.update.connect(self._on_update_result)
+        self.update_info: dict | None = None
+        self._af = None
+        self._chapters: list[dict] = []
         self.disc: tuple[str, str] | None = None
         self.disc_title: int | None = None      # None = the longest title (the film)
         self.mpv = self._make_mpv()
@@ -136,7 +142,12 @@ class PlayerWindow(QMainWindow):
 
         self._build_top()
         self._build_controls()
-        self.bubble = Bubble(self.stage)
+        self.bubble = SeekPreview(self.stage)
+        self.bubble.want_images = bool(cfg.get("thumbs", True))
+        from .thumbs import Thumbnailer
+        self.thumbs = Thumbnailer(mpv_module, bool(cfg.get("hwdec", True)))
+        self.thumbs.ready.connect(self._thumb_ready)
+        self._hover = (-1.0, -1)              # bucket under the mouse, x
         self.toast = Toast(self.stage)
         self.pulse = Pulse(self.stage)
         self.plpanel = PlaylistPanel(self.stage)
@@ -203,9 +214,26 @@ class PlayerWindow(QMainWindow):
         lay = QHBoxLayout(self.top)
         lay.setContentsMargins(20, 12, 14, 34)
         lay.setSpacing(8)
+        col = QVBoxLayout()
+        col.setSpacing(1)
         self.title_lbl = QLabel()
         self.title_lbl.setObjectName("title")
-        lay.addWidget(self.title_lbl, 1)
+        col.addWidget(self.title_lbl)
+        self.chapter_lbl = QLabel()
+        self.chapter_lbl.setStyleSheet("color: rgba(255,255,255,190); font-size: 9.5pt; background: transparent;")
+        self.chapter_lbl.setCursor(Qt.PointingHandCursor)
+        self.chapter_lbl.setToolTip(t("chapters") + " (PgUp / PgDn)")
+        self.chapter_lbl.mousePressEvent = lambda e: self._chapters_popup(e.globalPosition().toPoint())
+        self.chapter_lbl.hide()
+        col.addWidget(self.chapter_lbl)
+        lay.addLayout(col, 1)
+        self.upd_btn = QPushButton(style.icon("fa6s.circle-arrow-up", "#ffffff"), "")
+        self.upd_btn.setObjectName("primary")
+        self.upd_btn.setCursor(Qt.PointingHandCursor)
+        self.upd_btn.setFocusPolicy(Qt.NoFocus)
+        self.upd_btn.clicked.connect(self.show_update)
+        self.upd_btn.hide()
+        lay.addWidget(self.upd_btn)
         self.badges = QHBoxLayout()
         self.badges.setSpacing(6)
         lay.addLayout(self.badges)
@@ -437,8 +465,11 @@ class PlayerWindow(QMainWindow):
         self.title_lbl.setText(os.path.basename(self.path))
         self.setWindowTitle(f"{os.path.basename(self.path)} — {APP_TITLE}")
         self._clear_badges()
+        self._chapters = []
+        self.chapter_lbl.hide()
         self.mpv.pause = False
         self.disc = disc_of(self.path)
+        self.thumbs.set_file(self.path, False)
         if self.disc:
             kind, dev = self.disc
             name = os.path.basename(os.path.normpath(dev))
@@ -499,6 +530,8 @@ class PlayerWindow(QMainWindow):
             self._resume_note = fmt_time(pos)
             self.toast.show_text(t("resumed", fmt_time(pos)), 3500)
         self._update_badges()
+        self._af = None
+        self.apply_audio(quiet=True)
 
     def _on_failed(self, code: int):
         if not self.path:
@@ -539,9 +572,17 @@ class PlayerWindow(QMainWindow):
             self._update_badges()
         elif name in ("video-params", "audio-params"):
             self._update_badges()
+            if name == "video-params" and val and self.path:
+                self.thumbs.set_file(self.path, str(val.get("gamma") or "") in ("pq", "hlg"))
+            if name == "audio-params":
+                self.apply_audio(quiet=True)
         elif name == "chapter-list":
-            self.seekbar.chapters = [float(c.get("time", 0)) for c in (val or [])]
+            self._chapters = list(val or [])
+            self.seekbar.chapters = [float(c.get("time", 0)) for c in self._chapters]
             self.seekbar.update()
+            self._update_chapter_label()
+        elif name == "chapter":
+            self._update_chapter_label()
         elif name == "demuxer-cache-state":
             rng = (val or {}).get("seekable-ranges") or []
             self.seekbar.cached = [(float(r.get("start", 0)), float(r.get("end", 0))) for r in rng]
@@ -659,23 +700,94 @@ class PlayerWindow(QMainWindow):
         self.seekbar.set_state(sec, self.duration)
         self.mpv.command("seek", sec, "absolute+exact" if exact else "absolute+keyframes")
 
+    def _chapter_at(self, sec: float) -> tuple[int, str]:
+        idx, name = -1, ""
+        for i, c in enumerate(self._chapters):
+            if float(c.get("time", 0)) <= sec + 0.01:
+                idx, name = i, c.get("title") or ""
+        return idx, name
+
+    def _thumb_step(self) -> float:
+        return max(2.0, self.duration / 400) if self.duration else 2.0
+
+    def _thumbs_ok(self) -> bool:
+        return bool(self.cfg.get("thumbs", True)) and not self.disc and os.path.isfile(self.path)
+
     def _seek_hover(self, sec: float, x: int):
         if sec < 0:
             self.bubble.hide()
+            self._hover = (-1.0, -1)
             return
-        txt = fmt_time(sec, self.duration >= 3600)
-        chapters = self._get("chapter-list", []) or []
-        name = ""
-        for c in chapters:
-            if float(c.get("time", 0)) <= sec:
-                name = c.get("title") or ""
-        self.bubble.setText(f"{txt}   {name}" if name else txt)
-        self.bubble.adjustSize()
+        step = self._thumb_step()
+        bucket = round(sec / step) * step
+        self._hover = (bucket, x)
+        img = self.thumbs.request(sec, bucket) if self._thumbs_ok() else None
+        self._show_preview(sec, x, img)
+
+    def _frame_size(self) -> QSize | None:
+        if not self._thumbs_ok():
+            return None
+        vp = self._get("video-params", {}) or {}
+        w, h = int(vp.get("dw") or vp.get("w") or 16), int(vp.get("dh") or vp.get("h") or 9)
+        fw = 224
+        return QSize(fw, max(60, min(170, int(fw * h / max(1, w)))))
+
+    def _show_preview(self, sec: float, x: int, img):
+        idx, name = self._chapter_at(sec)
+        chap = (name or t("chapter_n", idx + 1)) if idx >= 0 and len(self._chapters) > 1 else ""
+        self.bubble.want_images = self._thumbs_ok()
+        self.bubble.set_content(fmt_time(sec, self.duration >= 3600), chap, img, self._frame_size())
         gp = self.seekbar.mapTo(self.stage, QPoint(x, 0))
         bx = max(6, min(self.stage.width() - self.bubble.width() - 6, gp.x() - self.bubble.width() // 2))
-        self.bubble.move(bx, gp.y() - self.bubble.height() - 4)
+        self.bubble.move(bx, gp.y() - self.bubble.height() - 6)
         self.bubble.show()
         self.bubble.raise_()
+
+    def _thumb_ready(self, path: str, bucket: float, img):
+        if path == self.path and self.bubble.isVisible() and abs(bucket - self._hover[0]) < 1e-6:
+            self._show_preview(bucket, self._hover[1], img)
+
+    # ── chapters ──────────────────────────────────────────────
+    def chapter_step(self, d: int) -> bool:
+        if len(self._chapters) < 2:
+            return False
+        self.mpv.command("add", "chapter", d)
+        QTimer.singleShot(200, self._announce_chapter)
+        return True
+
+    def _announce_chapter(self):
+        i = self._get("chapter", -1)
+        if i is not None and 0 <= i < len(self._chapters):
+            name = self._chapters[i].get("title") or ""
+            self.toast.show_text(t("chapter_toast", i + 1, len(self._chapters)) + (f" · {name}" if name else ""), 1600)
+
+    def _update_chapter_label(self):
+        i = self._get("chapter", -1)
+        if len(self._chapters) > 1 and i is not None and 0 <= i < len(self._chapters):
+            name = self._chapters[i].get("title") or ""
+            self.chapter_lbl.setText(t("chapter_toast", i + 1, len(self._chapters)) + (f"  ·  {name}" if name else ""))
+            self.chapter_lbl.show()
+        else:
+            self.chapter_lbl.hide()
+
+    def _fill_chapters_menu(self, m: QMenu):
+        cur = self._get("chapter", -1)
+        grp = QActionGroup(m)
+        force_h = self.duration >= 3600
+        for i, c in enumerate(self._chapters):
+            tm = float(c.get("time", 0))
+            a = m.addAction(f"{fmt_time(round(tm), force_h)}   {c.get('title') or t('chapter_n', i + 1)}")
+            a.setCheckable(True)
+            a.setChecked(i == cur)
+            a.triggered.connect(lambda _=False, i=i: (setattr(self.mpv, "chapter", i), self.poke()))
+            grp.addAction(a)
+        if not self._chapters:
+            m.addAction(t("no_chapters")).setEnabled(False)
+
+    def _chapters_popup(self, pos: QPoint):
+        m = QMenu(self)
+        self._fill_chapters_menu(m)
+        m.exec(pos)
 
     def change_volume(self, delta: int):
         if not self.path:
@@ -812,9 +924,58 @@ class PlayerWindow(QMainWindow):
         if kind == "audio" and not items:
             m.addAction(t("no_audio")).setEnabled(False)
 
+    def apply_audio(self, quiet: bool = False):
+        """Sound mode + equalizer → mpv's audio filter chain (rebuilt when the channel count changes)."""
+        ap = self._get("audio-params", {}) or {}
+        ch = int(ap.get("channel-count") or 2)
+        layout = str(ap.get("channels") or "")
+        af = audio.build(self.cfg.get("audio_mode", "off"), self.cfg.get("eq", [0] * 10), ch, layout)
+        if af == self._af:
+            return
+        try:
+            self.mpv.af = af
+            self._af = af
+        except Exception as e:
+            self._af = None
+            if not quiet:
+                self.toast.show_text(t("af_fail", e), 2500)
+
+    def set_audio_mode(self, mode: str):
+        self.cfg["audio_mode"] = mode
+        config.save(self.cfg)
+        self.apply_audio()
+        self.toast.show_text(t("sound") + ": " + t("am_" + mode), 1500)
+
+    def _fill_sound_menu(self, m: QMenu):
+        grp = QActionGroup(m)
+        cur = self.cfg.get("audio_mode", "off")
+        for mode in audio.MODES:
+            a = m.addAction(t("am_" + mode))
+            a.setCheckable(True)
+            a.setChecked(mode == cur)
+            a.setToolTip(t("am_" + mode + "_tip"))
+            a.triggered.connect(lambda _=False, md=mode: self.set_audio_mode(md))
+            grp.addAction(a)
+        m.setToolTipsVisible(True)
+        m.addSeparator()
+        eq_on = any(self.cfg.get("eq", [0] * 10))
+        m.addAction(style.icon("fa6s.sliders", "#6ea8fe" if eq_on else style.TEXT),
+                    t("equalizer") + ("  ✓" if eq_on else "") + "…\tE", self.equalizer_dialog)
+
+    def equalizer_dialog(self):
+        from .dialogs import EqualizerDialog
+        old = list(self.cfg.get("eq", [0] * 10))
+        d = EqualizerDialog(self.cfg, self)
+        d.changed.connect(lambda: self.apply_audio())
+        if not d.exec():
+            self.cfg["eq"] = old
+            self.apply_audio()
+        config.save(self.cfg)
+
     def _fill_audio_menu(self, m: QMenu):
         self._fill_tracks(m, "audio")
         m.addSeparator()
+        self._fill_sound_menu(m.addMenu(style.icon("fa6s.wave-square"), t("sound")))
         m.addAction(style.icon("fa6s.file-audio"), t("load_audio"), self._load_audio)
 
     def _fill_subs_menu(self, m: QMenu):
@@ -869,6 +1030,9 @@ class PlayerWindow(QMainWindow):
             m.addAction(style.icon("fa6s.backward-step"), t("title_prev", cur), lambda: self.play_disc_title(cur - 1))
 
     def _fill_more_menu(self, m: QMenu):
+        if len(self._chapters) > 1:
+            self._fill_chapters_menu(m.addMenu(style.icon("fa6s.bookmark"), t("chapters") + f" · {len(self._chapters)}"))
+            m.addSeparator()
         if self.disc:
             self._fill_titles_menu(m.addMenu(style.icon("fa6s.compact-disc"), t("disc_titles")))
             m.addSeparator()
@@ -935,6 +1099,67 @@ class PlayerWindow(QMainWindow):
         self.mpv.sub_delay = 0 if v is None else cur + v
         self.toast.show_text(t("sub_delay", f"{float(self._get('sub-delay', 0)):+.1f}"), 1100)
 
+    # ── updates ───────────────────────────────────────────────
+    UPDATE_EVERY = 24 * 3600
+
+    def maybe_check_updates(self):
+        from . import updater
+        if self.cfg.get("check_updates", True) and updater.can_self_update() \
+                and time.time() - float(self.cfg.get("last_update_check", 0)) > self.UPDATE_EVERY:
+            self.check_updates()
+
+    def check_updates(self, manual: bool = False):
+        import threading
+        from . import updater
+        self._update_manual = manual
+        self.cfg["last_update_check"] = int(time.time())
+        config.save(self.cfg)
+
+        def work():
+            try:
+                self.bridge.update.emit(updater.check(), "")
+            except Exception as e:
+                self.bridge.update.emit(None, str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_update_result(self, info, err: str):
+        manual = getattr(self, "_update_manual", False)
+        if err:
+            if manual:
+                QMessageBox.warning(self, APP_TITLE, t("upd_error", err))
+            return
+        if not info:
+            if manual:
+                QMessageBox.information(self, APP_TITLE, t("upd_none", VERSION))
+            return
+        self.update_info = info
+        self.upd_btn.setText("  " + t("upd_available", info["version"]))
+        self.upd_btn.show()
+        self.start.show_update(info["version"], self.show_update)
+        if manual:
+            self.show_update()
+        elif self.cfg.get("update_notified") != info["version"]:
+            self.cfg["update_notified"] = info["version"]
+            config.save(self.cfg)
+            self.toast.show_text(t("upd_available", info["version"]), 4000)
+
+    def show_update(self):
+        info = self.update_info
+        if not info:
+            return
+        from . import updater
+        if not updater.can_self_update() or not info.get("url"):
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(info["page"]))
+            return
+        from .dialogs import UpdateDialog
+        d = UpdateDialog(info, self)
+        if d.exec() and d.path:
+            self._installer = d.path
+            self.cfg["reopen"] = self.path if self.path and os.path.exists(self.path) else ""
+            self.close()
+
     # ── dialogs ───────────────────────────────────────────────
     def settings_dialog(self):
         from .dialogs import SettingsDialog
@@ -949,6 +1174,7 @@ class PlayerWindow(QMainWindow):
                     self.mpv.screenshot_directory = self.cfg["screenshot_dir"]
             except Exception:
                 pass
+            self.bubble.want_images = bool(self.cfg.get("thumbs", True))
             if d.lang_changed:
                 QMessageBox.information(self, APP_TITLE, t("restart_lang"))
 
@@ -990,10 +1216,20 @@ class PlayerWindow(QMainWindow):
             self.shift_sub(-0.5 if not shift else -0.1)
         elif k == Qt.Key_X:
             self.shift_sub(0.5 if not shift else 0.1)
+        elif k == Qt.Key_PageDown and not shift and self.chapter_step(1):
+            pass                                   # chapters first; Shift+PgDn / N always go to the next file
+        elif k == Qt.Key_PageUp and not shift and self.chapter_step(-1):
+            pass
         elif k in (Qt.Key_PageDown, Qt.Key_N, Qt.Key_MediaNext):
             self.play_next()
         elif k in (Qt.Key_PageUp, Qt.Key_P, Qt.Key_MediaPrevious):
             self.play_prev()
+        elif k == Qt.Key_C and self._chapters:
+            self._chapters_popup(QCursor.pos())
+        elif k == Qt.Key_E:
+            self.equalizer_dialog()
+        elif k == Qt.Key_D and not ctrl:
+            self.set_audio_mode("off" if self.cfg.get("audio_mode", "off") == "dialog" else "dialog")
         elif k == Qt.Key_BracketRight:
             self.step_speed(True)
         elif k == Qt.Key_BracketLeft:
@@ -1058,9 +1294,15 @@ class PlayerWindow(QMainWindow):
         config.save(self.cfg)
         QApplication.instance().removeEventFilter(self)
         self.ui_timer.stop()
+        self.thumbs.stop()
         try:
             self.video.shutdown()
             self.mpv.terminate()
         except Exception:
             pass
+        installer = getattr(self, "_installer", "")
+        if installer:                         # self-update: settings saved, let the installer in
+            from . import updater
+            winint.release_mutex()
+            updater.run_installer(installer)
         super().closeEvent(e)

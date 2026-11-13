@@ -285,8 +285,26 @@ class StartPage(QWidget):
         rl.addWidget(self.recent)
         rl.addStretch()
         outer.addLayout(rl, 3)
+        self.upd = QPushButton()
+        self.upd.setObjectName("primary")
+        self.upd.setCursor(Qt.PointingHandCursor)
+        self.upd.setFocusPolicy(Qt.NoFocus)
+        self.upd.setIcon(style.icon("fa6s.circle-arrow-up", "#ffffff"))
+        self.upd.hide()
+        ul = QHBoxLayout()
+        ul.addStretch()
+        ul.addWidget(self.upd)
+        ul.addStretch()
+        outer.addLayout(ul)
         outer.addStretch(1)
         self.refresh()
+
+    def show_update(self, version: str, slot):
+        self.upd.setText("  " + t("upd_available", version))
+        if not getattr(self, "_upd_connected", False):
+            self.upd.clicked.connect(slot)
+            self._upd_connected = True
+        self.upd.show()
 
     def refresh(self):
         self.recent.clear()
@@ -348,3 +366,49 @@ class PlaylistPanel(QWidget):
         if 0 <= current < self.list.count():
             self.list.setCurrentRow(current)
             self.list.scrollToItem(self.list.item(current), QListWidget.PositionAtCenter)
+
+
+class SeekPreview(QWidget):
+    """Above the seek bar: the frame at the mouse position (when the thumbnailer has it), the time
+    and the chapter name."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WA_StyledBackground)
+        self.setObjectName("seekPreview")
+        self.setStyleSheet("QWidget#seekPreview { background: rgba(15,17,21,235); border: 1px solid rgba(255,255,255,45);"
+                           " border-radius: 9px; }")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 5)
+        lay.setSpacing(3)
+        self.pic = QLabel()
+        self.pic.setAlignment(Qt.AlignCenter)
+        self.pic.setStyleSheet("background: #000000; border-radius: 6px;")
+        lay.addWidget(self.pic)
+        self.text = QLabel()
+        self.text.setAlignment(Qt.AlignCenter)
+        self.text.setStyleSheet("color: #ffffff; font-weight: 600; background: transparent; padding: 0 6px;")
+        lay.addWidget(self.text)
+        self.chapter = QLabel()
+        self.chapter.setAlignment(Qt.AlignCenter)
+        self.chapter.setStyleSheet(f"color: {style.MUTED}; font-size: 8.5pt; background: transparent; padding: 0 6px;")
+        lay.addWidget(self.chapter)
+        self.want_images = True
+        self.hide()
+
+    def set_content(self, time_text: str, chapter: str, image=None, frame_size: QSize | None = None):
+        self.text.setText(time_text)
+        self.chapter.setText(chapter)
+        self.chapter.setVisible(bool(chapter))
+        if self.want_images and frame_size is not None:
+            from PySide6.QtGui import QPixmap
+            if image is not None and not image.isNull():
+                pm = QPixmap.fromImage(image).scaled(frame_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.pic.setPixmap(pm)
+            else:
+                self.pic.setPixmap(QPixmap())
+            self.pic.setFixedSize(frame_size)
+            self.pic.show()
+        else:
+            self.pic.hide()
+        self.adjustSize()

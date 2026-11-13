@@ -125,8 +125,15 @@ def main() -> int:
         s.readyRead.connect(read)
     server.newConnection.connect(on_conn)
 
+    reopen = cfg.get("reopen", "")
+    if reopen:
+        cfg["reopen"] = ""
+        config.save(cfg)
+        if not paths and os.path.exists(reopen):
+            paths = [reopen]                     # back to the film after a self-update
     if paths:
         QTimer.singleShot(0, lambda: win.open_paths(paths))
+    QTimer.singleShot(4000, win.maybe_check_updates)
     code = app.exec()
     server.close()
     return code
