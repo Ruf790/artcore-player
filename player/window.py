@@ -14,7 +14,7 @@ from . import APP_TITLE, AUDIO_EXT, DISC_EXT, SUB_EXT, VIDEO_EXT, VERSION, confi
 from .i18n import lang_name, t
 from .video import VideoWidget
 from . import audio
-from .widgets import (GradientPanel, Pulse, PlaylistPanel, SeekBar, SeekPreview, StartPage, Toast, ctl_button,
+from .widgets import (GradientPanel, Pulse, PlaylistPanel, SeekBar, SeekPreview, Toast, ctl_button,
                       fmt_time)
 
 MEDIA_EXT = VIDEO_EXT + AUDIO_EXT
@@ -127,7 +127,7 @@ class PlayerWindow(QMainWindow):
         self.stage = Stage(self)
         self.setCentralWidget(self.stage)
         self.video = VideoWidget(mpv_module, self.mpv, self.stage)
-        self.video.clicked.connect(self.toggle_pause)
+        self.video.clicked.connect(lambda: self.toggle_pause() if self.path else None)
         self.video.double_clicked.connect(self.toggle_fullscreen)
         self.video.context_menu.connect(self.show_context_menu)
         self.video.wheel.connect(lambda d: self.change_volume(5 * d))
@@ -135,10 +135,6 @@ class PlayerWindow(QMainWindow):
         self.video.ready.connect(self._video_ready)
         self._pending_index: int | None = None
 
-        self.start = StartPage(cfg, self.stage)
-        self.start.open_file.connect(self.open_dialog)
-        self.start.open_folder.connect(self.open_folder_dialog)
-        self.start.open_recent.connect(lambda p: self.open_paths([p]))
 
         self._build_top()
         self._build_controls()
@@ -307,7 +303,6 @@ class PlayerWindow(QMainWindow):
     def layout_overlays(self):
         w, h = self.stage.width(), self.stage.height()
         self.video.setGeometry(0, 0, w, h)
-        self.start.setGeometry(0, 0, w, h)
         self.top.setGeometry(0, 0, w, 86)
         ch = self.ctl.sizeHint().height()
         self.ctl.setGeometry(0, h - ch, w, ch)
@@ -368,15 +363,29 @@ class PlayerWindow(QMainWindow):
                 pass
 
     def _set_idle_view(self, idle: bool):
-        self.start.setVisible(idle)
-        self.top.setVisible(not idle)
-        self.ctl.setVisible(not idle)
+        """No file: the player itself — black picture, title and controls (▶ / Ctrl+O / drop opens a file)."""
+        self.top.setVisible(True)
+        self.ctl.setVisible(True)
+        self.top_close.setVisible(not idle)
         if idle:
-            self.start.refresh()
+            self.idle.stop()
             self.plpanel.hide()
             self.setWindowTitle(APP_TITLE)
+            self.title_lbl.setText(APP_TITLE)
+            self.chapter_lbl.hide()
+            self._clear_badges()
+            self._chapters = []
+            self.seekbar.chapters = []
+            self.seekbar.cached = []
+            self.seekbar.set_state(0, 0)
+            self.time_lbl.setText("0:00 / 0:00")
+            self.b_play.setIcon(style.icon("fa6s.play", "#ffffff"))
+            self.b_play.setToolTip(t("open_file") + " (Ctrl+O)")
+            self.b_prev.setEnabled(False)
+            self.b_next.setEnabled(False)
             self.video.unsetCursor()
             self.stage.unsetCursor()
+            self.video.update()
         self.layout_overlays()
 
     # ── opening files ─────────────────────────────────────────
@@ -549,6 +558,10 @@ class PlayerWindow(QMainWindow):
     def _on_prop(self, name: str, val):
         if name == "pause":
             self.paused = bool(val)
+            if not self.path:                  # nothing open: ▶ means "open a file"
+                self.b_play.setIcon(style.icon("fa6s.play", "#ffffff"))
+                self.b_play.setToolTip(t("open_file") + " (Ctrl+O)")
+                return
             self.b_play.setIcon(style.icon("fa6s.play" if self.paused else "fa6s.pause", "#ffffff"))
             self.b_play.setToolTip((t("play") if self.paused else t("pause")) + " (Space)")
             if self.paused:
@@ -1063,6 +1076,16 @@ class PlayerWindow(QMainWindow):
         m = QMenu(self)
         m.addAction(style.icon("fa6s.file-video"), t("open_file") + "\tCtrl+O", self.open_dialog)
         m.addAction(style.icon("fa6s.folder-open"), t("open_folder"), self.open_folder_dialog)
+        recent = [p for p in self.cfg.get("recent", []) if os.path.exists(p)][:10]
+        if recent:
+            rm = m.addMenu(style.icon("fa6s.clock-rotate-left"), t("recent_menu"))
+            saved = self.cfg.get("positions", {})
+            for p in recent:
+                txt = os.path.basename(os.path.normpath(p))
+                if p in saved:
+                    txt += "   ·   " + t("resume_at", fmt_time(saved[p]))
+                rm.addAction(style.icon("fa6s.circle-play" if p in saved else "fa6s.film"), txt,
+                             lambda p=p: self.open_paths([p]))
         if self.path:
             m.addSeparator()
             m.addAction(style.icon("fa6s.pause" if not self.paused else "fa6s.play"),
@@ -1135,7 +1158,6 @@ class PlayerWindow(QMainWindow):
         self.update_info = info
         self.upd_btn.setText("  " + t("upd_available", info["version"]))
         self.upd_btn.show()
-        self.start.show_update(info["version"], self.show_update)
         if manual:
             self.show_update()
         elif self.cfg.get("update_notified") != info["version"]:

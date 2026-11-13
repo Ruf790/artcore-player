@@ -10,6 +10,7 @@ STRINGS = {
     "open_file":      ("Открыть файл", "Open file"),
     "open_folder":    ("Открыть папку", "Open folder"),
     "recent":         ("НЕДАВНИЕ", "RECENT"),
+    "recent_menu":    ("Недавние", "Recent"),
     "resume_at":      ("остановились на {0}", "stopped at {0}"),
     "media_files":    ("Видео и аудио", "Video and audio"),
     "all_files":      ("Все файлы", "All files"),
