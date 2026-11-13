@@ -260,6 +260,7 @@ class PlaylistPanel(QWidget):
         self.list.setObjectName("playlist")
         self.list.setFocusPolicy(Qt.NoFocus)
         self.list.setWordWrap(True)
+        self.list.setIconSize(QSize(24, 24))
         self.list.itemActivated.connect(lambda it: self.play.emit(self.list.row(it)))
         self.list.itemDoubleClicked.connect(lambda it: self.play.emit(self.list.row(it)))
         lay.addWidget(self.list, 1)
@@ -276,6 +277,10 @@ class PlaylistPanel(QWidget):
                 it.setFont(f)
                 it.setForeground(QColor("#6ea8fe"))
                 it.setIcon(style.icon("fa6s.play", "#6ea8fe"))
+            else:
+                ic = style.format_icon(p)
+                if ic is not None:
+                    it.setIcon(ic)
             self.list.addItem(it)
         self.title.setText(t("playlist_n", len(paths)))
         if 0 <= current < self.list.count():

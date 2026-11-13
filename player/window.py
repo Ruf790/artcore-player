@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, Q
                                QPushButton, QSlider, QVBoxLayout, QWidget)
 
 from . import APP_TITLE, AUDIO_EXT, DISC_EXT, SUB_EXT, VIDEO_EXT, VERSION, config, style, winint
+from .dialogs import CHANNELS as CHANNEL_KEYS, CODEPAGES
 from .i18n import lang_name, t
 from .video import VideoWidget
 from . import audio
@@ -130,7 +131,7 @@ class PlayerWindow(QMainWindow):
         self.video.clicked.connect(lambda: self.toggle_pause() if self.path else None)
         self.video.double_clicked.connect(self.toggle_fullscreen)
         self.video.context_menu.connect(self.show_context_menu)
-        self.video.wheel.connect(lambda d: self.change_volume(5 * d))
+        self.video.wheel.connect(lambda d: self.change_volume(int(self.cfg.get("vol_step", 5)) * d))
         self.video.moved.connect(self.poke)
         self.video.ready.connect(self._video_ready)
         self._pending_index: int | None = None
@@ -166,7 +167,7 @@ class PlayerWindow(QMainWindow):
 
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
-        self.idle.setInterval(2600)
+        self.idle.setInterval(int(float(cfg.get("hide_delay", 2.6)) * 1000))
         self.idle.timeout.connect(self._hide_overlays)
         QApplication.instance().installEventFilter(self)
 
@@ -177,6 +178,9 @@ class PlayerWindow(QMainWindow):
 
         if cfg.get("on_top"):
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.after_action = "nothing"          # when playback ends: nothing | close | sleep | shutdown (this session)
+        self._paused_by_minimize = False
+        self.apply_prefs()
         self.apply_picture()
         QTimer.singleShot(0, self.apply_smooth)
         self._set_idle_view(True)
@@ -190,9 +194,10 @@ class PlayerWindow(QMainWindow):
             vo="libmpv", hwdec="auto-safe" if cfg.get("hwdec", True) else "no",
             keep_open="yes", idle="yes", osc=False, input_default_bindings=False, input_vo_keyboard=False,
             config=False, terminal=False, ytdl=False,
-            volume=int(cfg.get("volume", 80)), mute=bool(cfg.get("muted")), volume_max=150,
-            sub_auto="fuzzy", audio_file_auto="fuzzy", alang=cfg.get("alang", ""), slang=cfg.get("slang", ""),
-            screenshot_directory=shots, screenshot_template="%F_%wH-%wM-%wS", screenshot_format="png",
+            volume=min(int(cfg.get("volume", 80)), int(cfg.get("volume_max", 150))), mute=bool(cfg.get("muted")),
+            volume_max=int(cfg.get("volume_max", 150)),
+            sub_auto=cfg.get("sub_auto", "fuzzy"), audio_file_auto="fuzzy", alang=cfg.get("alang", ""), slang=cfg.get("slang", ""),
+            screenshot_directory=shots, screenshot_template="%F_%wH-%wM-%wS", screenshot_format=cfg.get("screenshot_format", "png"),
             osd_font_size=30, osd_bar=False, sub_font_size=46, sub_border_size=2.6, sub_shadow_offset=1,
             demuxer_max_bytes="400MiB", demuxer_max_back_bytes="100MiB", cache="auto",
             hr_seek="yes", hr_seek_framedrop=True,
@@ -275,7 +280,7 @@ class PlayerWindow(QMainWindow):
         row.addWidget(self.b_vol)
         self.vol = QSlider(Qt.Horizontal)
         self.vol.setObjectName("volume")
-        self.vol.setRange(0, 150)
+        self.vol.setRange(0, int(self.cfg.get("volume_max", 150)))
         self.vol.setFixedWidth(96)
         self.vol.setFocusPolicy(Qt.NoFocus)
         self.vol.setValue(int(self.cfg.get("volume", 80)))
@@ -484,6 +489,7 @@ class PlayerWindow(QMainWindow):
             self.video.update()
             return
         self._save_position()
+        from_idle = not self.path
         self.index = idx
         self.path = self.playlist[idx]
         self.duration = self.position = 0.0
@@ -501,6 +507,10 @@ class PlayerWindow(QMainWindow):
         self.seekbar.intro = None
         self.clear_ab(quiet=True)
         self.mpv.pause = False
+        if not self.cfg.get("keep_speed", True) and abs(float(self._get("speed", 1.0)) - 1.0) > 1e-6:
+            self.mpv.speed = 1.0
+        if from_idle and self.cfg.get("start_fullscreen") and not self.isFullScreen() and not self.mini:
+            QTimer.singleShot(0, self.toggle_fullscreen)
         self.disc = disc_of(self.path)
         self.thumbs.set_file(self.path, False)
         if self.disc:
@@ -633,11 +643,65 @@ class PlayerWindow(QMainWindow):
     def _on_eof(self):
         config.set_position(self.cfg, self.path, None)         # watched to the end
         config.save(self.cfg)
-        if self.cfg.get("autoplay_next", True) and self.index < len(self.playlist) - 1:
+        rep = self.cfg.get("repeat", "off")
+        has_next = self.index < len(self.playlist) - 1
+        if has_next and (self.cfg.get("autoplay_next", True) or rep == "list"):
             self.toast.show_text(t("next_file", os.path.basename(self.playlist[self.index + 1])), 2500)
             QTimer.singleShot(400, self.play_next)
+        elif rep == "list" and self.playlist and not self.disc:
+            self.toast.show_text(t("next_file", os.path.basename(self.playlist[0])), 2500)
+            QTimer.singleShot(400, lambda: self.play_index(0))
         else:
             self.poke()
+            if self.after_action != "nothing":
+                QTimer.singleShot(600, self._after_playback)
+
+    # ── repeat / when playback ends ───────────────────────────
+    def set_repeat(self, mode: str, quiet: bool = False):
+        self.cfg["repeat"] = mode if mode in ("off", "file", "list") else "off"
+        config.save(self.cfg)
+        try:
+            self.mpv.loop_file = "inf" if self.cfg["repeat"] == "file" else "no"
+        except Exception:
+            pass
+        if not quiet:
+            self.toast.show_text(t("rep_toast_" + self.cfg["repeat"]), 1500)
+
+    def cycle_repeat(self):
+        order = ("off", "file", "list")
+        cur = self.cfg.get("repeat", "off")
+        self.set_repeat(order[(order.index(cur) + 1) % 3 if cur in order else 0])
+
+    def set_after(self, action: str):
+        self.after_action = action
+        self.toast.show_text(t("after_toast", t("after_" + action)), 2000)
+
+    def _after_playback(self):
+        action, self.after_action = self.after_action, "nothing"
+        if action == "close":
+            self.close()
+            return
+        if action not in ("sleep", "shutdown"):
+            return
+        from .dialogs import CountdownDialog
+        if CountdownDialog(t("after_" + action), 30, self).exec():
+            self._save_position()
+            config.save(self.cfg)
+            if action == "sleep":
+                winint.suspend()
+            else:
+                self.close()
+                winint.shutdown()
+
+    def changeEvent(self, e):
+        super().changeEvent(e)
+        if e.type() == e.Type.WindowStateChange and self.cfg.get("pause_minimized") and self.path:
+            if self.isMinimized() and not self.paused:
+                self._paused_by_minimize = True
+                self.mpv.pause = True
+            elif not self.isMinimized() and self._paused_by_minimize:
+                self._paused_by_minimize = False
+                self.mpv.pause = False
 
     def _refresh_time(self):
         if not self.path:
@@ -918,7 +982,7 @@ class PlayerWindow(QMainWindow):
             folder = self._get("screenshot-directory") or ""
             if folder:
                 os.makedirs(os.path.expanduser(folder), exist_ok=True)
-            self.mpv.command("screenshot", "subtitles")
+            self.mpv.command("screenshot", "subtitles" if self.cfg.get("screenshot_subs", True) else "video")
             self.toast.show_text(t("shot_saved", folder or "~"), 2200)
         except Exception as e:
             self.toast.show_text(t("shot_fail", e), 2500)
@@ -1255,6 +1319,16 @@ class PlayerWindow(QMainWindow):
         for v, txt in ((-0.1, "−0.1 s  (Ctrl+Z)"), (-0.05, "−0.05 s"), (0.05, "+0.05 s"), (0.1, "+0.1 s  (Ctrl+X)")):
             d.addAction(txt, lambda v=v: self.shift_audio(v))
         d.addAction(t("reset"), lambda: self.shift_audio(None))
+        ch = m.addMenu(style.icon("fa6s.circle-nodes"), t("ch_menu"))
+        self._radio(ch, [(v, t(k)) for v, k in CHANNEL_KEYS], self.cfg.get("audio_channels", "auto-safe"),
+                    self.set_channels)
+        dev = m.addMenu(style.icon("fa6s.volume-high"), t("adevice"))
+        devs = [("auto", t("adevice_auto"))] + [(str(d.get("name")), str(d.get("description") or d.get("name")))
+                                               for d in (self._get("audio-device-list", []) or [])
+                                               if d.get("name") and d.get("name") != "auto"]
+        self._radio(dev, devs, self.cfg.get("audio_device", "auto"),
+                    lambda v: self.set_audio_device(v, dict(devs).get(v, v)))
+        m.addSeparator()
         m.addAction(style.icon("fa6s.file-audio"), t("load_audio"), self._load_audio)
 
     def _fill_subs_menu(self, m: QMenu):
@@ -1266,11 +1340,16 @@ class PlayerWindow(QMainWindow):
             d.addAction(txt, lambda v=v: self.shift_sub(v))
         d.addAction(t("reset"), lambda: self.shift_sub(None))
         sz = m.addMenu(style.icon("fa6s.text-height"), t("sub_size"))
-        for v in (0.8, 0.9, 1.0, 1.15, 1.3, 1.5):
-            a = sz.addAction(f"{int(v * 100)} %")
-            a.setCheckable(True)
-            a.setChecked(abs(float(self._get("sub-scale", 1.0)) - v) < 0.01)
-            a.triggered.connect(lambda _=False, v=v: setattr(self.mpv, "sub_scale", v))
+        scur = float(self._get("sub-scale", 1.0) or 1.0)
+        sizes = (0.8, 0.9, 1.0, 1.15, 1.3, 1.5)
+        self._radio(sz, [(v, f"{int(round(v * 100))} %") for v in sizes], min(sizes, key=lambda v: abs(v - scur)),
+                    self.set_sub_scale)
+        cp = m.addMenu(style.icon("fa6s.language"), t("codepage"))
+        self._radio(cp, [(c, n or t("cp_auto")) for c, n in CODEPAGES], self.cfg.get("sub_codepage", "auto"),
+                    self.set_codepage)
+        m.addSeparator()
+        m.addAction(style.icon("fa6s.gear"), t("tab_subs") + " — " + t("settings").lower() + "…",
+                    lambda: self.settings_dialog(3))
 
     def _fill_speed_menu(self, m: QMenu):
         cur = float(self._get("speed", 1.0))
@@ -1308,6 +1387,62 @@ class PlayerWindow(QMainWindow):
         if cur:
             m.addAction(style.icon("fa6s.backward-step"), t("title_prev", cur), lambda: self.play_disc_title(cur - 1))
 
+    @staticmethod
+    def _radio(m: QMenu, items, current, slot):
+        """Checkable items in a group: items = (value, text[, icon]) …; slot(value)."""
+        grp = QActionGroup(m)
+        for it in items:
+            val, txt = it[0], it[1]
+            a = m.addAction(style.icon(it[2]), txt) if len(it) > 2 and it[2] else m.addAction(txt)
+            a.setCheckable(True)
+            a.setChecked(val == current)
+            a.triggered.connect(lambda _=False, v=val: slot(v))
+            grp.addAction(a)
+        return grp
+
+    def _fill_video_menu(self, m: QMenu):
+        m.addAction(style.icon("fa6s.circle-half-stroke"), t("picture") + "…\tV", self.picture_dialog)
+        sm = m.addAction(style.icon("fa6s.wand-magic-sparkles"), t("smooth") + "\tH", self.toggle_smooth)
+        sm.setCheckable(True)
+        sm.setChecked(bool(self.cfg.get("smooth")))
+        db = m.addAction(style.icon("fa6s.droplet"), t("deband"),
+                         lambda: self.toggle_pref("deband", "deband", t("deband")))
+        db.setCheckable(True)
+        db.setChecked(bool(self.cfg.get("deband")))
+        q = m.addMenu(style.icon("fa6s.gem"), t("set_quality"))
+        self._radio(q, [(k, t("q_menu_" + k)) for k in ("fast", "normal", "high")], self.cfg.get("quality", "normal"),
+                    self.set_quality)
+        di = m.addMenu(style.icon("fa6s.bars-staggered"), t("deint"))
+        self._radio(di, [(k, t("deint_" + k)) for k in ("auto", "yes", "no")], self.cfg.get("deinterlace", "auto"),
+                    self.set_deint)
+        m.addSeparator()
+        asp = m.addMenu(style.icon("fa6s.crop"), t("aspect"))
+        cur = str(self._get("video-aspect-override", "-1"))
+        if cur in ("-1", "-1.000000", "no"):
+            cur = "-1"
+        self._radio(asp, [(v, txt) for v, txt in (("-1", t("aspect_auto")), ("16:9", "16:9"), ("4:3", "4:3"),
+                                                  ("2.35:1", "2.35:1"), ("1.85:1", "1.85:1"), ("21:9", "21:9"))],
+                    cur, lambda v: setattr(self.mpv, "video_aspect_override", v))
+        zoom = m.addMenu(style.icon("fa6s.magnifying-glass-plus"), t("zoom"))
+        zcur = float(self._get("video-zoom", 0) or 0)
+        self._radio(zoom, [(0, "100 %"), (0.1, "110 %"), (0.2, "120 %"), (0.33, "133 % — " + t("zoom_crop"))],
+                    min((0, 0.1, 0.2, 0.33), key=lambda v: abs(v - zcur)),
+                    lambda v: setattr(self.mpv, "video_zoom", v))
+        rot = m.addMenu(style.icon("fa6s.rotate"), t("rotate"))
+        self._radio(rot, [(d, f"{d}°" + ("\tCtrl+R" if d == 90 else "")) for d in (0, 90, 180, 270)],
+                    int(self._get("video-rotate", 0) or 0), self.rotate)
+
+    def _fill_repeat_menu(self, m: QMenu):
+        self._radio(m, [("off", t("rep_off"), "fa6s.ban"), ("file", t("rep_file"), "fa6s.repeat"),
+                        ("list", t("rep_list"), "fa6s.list-ol")], self.cfg.get("repeat", "off"), self.set_repeat)
+
+    def _fill_after_menu(self, m: QMenu):
+        self._radio(m, [("nothing", t("after_nothing")), ("close", t("after_close"), "fa6s.xmark"),
+                        ("sleep", t("after_sleep"), "fa6s.moon"), ("shutdown", t("after_shutdown"), "fa6s.power-off")],
+                    self.after_action, self.set_after)
+        m.addSeparator()
+        m.addAction(t("after_hint")).setEnabled(False)
+
     def _fill_more_menu(self, m: QMenu):
         if len(self._chapters) > 1:
             self._fill_chapters_menu(m.addMenu(style.icon("fa6s.bookmark"), t("chapters") + f" · {len(self._chapters)}"))
@@ -1319,42 +1454,39 @@ class PlayerWindow(QMainWindow):
             self._fill_intro_menu(m.addMenu(style.icon("fa6s.forward"), t("intro_menu")))
         a, b = self.seekbar.loop
         ab_txt = t("ab_menu_set_a") if a is None else t("ab_menu_set_b") if b is None else t("ab_menu_clear")
-        m.addAction(style.icon("fa6s.repeat"), ab_txt + "\tB", self.ab_step)
+        m.addAction(style.icon("fa6s.arrows-left-right-to-line"), ab_txt + "\tB", self.ab_step)
+        rep = self.cfg.get("repeat", "off")
+        self._fill_repeat_menu(m.addMenu(style.icon("fa6s.repeat", style.ACCENT_LIGHT if rep != "off" else style.TEXT),
+                                         t("set_repeat") + ("" if rep == "off" else " · " + t("rep_" + rep)) + "\tR"))
+        after = m.addMenu(style.icon("fa6s.power-off", style.ACCENT_LIGHT if self.after_action != "nothing" else style.TEXT),
+                          t("after") + ("" if self.after_action == "nothing" else " · " + t("after_" + self.after_action)))
+        self._fill_after_menu(after)
         m.addSeparator()
-        m.addAction(style.icon("fa6s.circle-half-stroke"), t("picture") + "…\tV", self.picture_dialog)
-        sm = m.addAction(style.icon("fa6s.wand-magic-sparkles"), t("smooth") + "\tH", self.toggle_smooth)
-        sm.setCheckable(True)
-        sm.setChecked(bool(self.cfg.get("smooth")))
+        self._fill_video_menu(m.addMenu(style.icon("fa6s.film"), t("video_menu")))
         mi = m.addAction(style.icon("fa6s.clone"), t("mini") + "\tCtrl+M", self.toggle_mini)
         mi.setCheckable(True)
         mi.setChecked(self.mini)
-        asp = m.addMenu(style.icon("fa6s.crop"), t("aspect"))
-        cur = str(self._get("video-aspect-override", "-1"))
-        for val, txt in (("-1", t("aspect_auto")), ("16:9", "16:9"), ("4:3", "4:3"), ("2.35:1", "2.35:1"),
-                         ("1.85:1", "1.85:1"), ("21:9", "21:9")):
-            a = asp.addAction(txt)
-            a.setCheckable(True)
-            a.setChecked(cur == val or (val == "-1" and cur in ("-1", "-1.000000", "no")))
-            a.triggered.connect(lambda _=False, v=val: setattr(self.mpv, "video_aspect_override", v))
-        zoom = m.addMenu(style.icon("fa6s.magnifying-glass-plus"), t("zoom"))
-        for val, txt in ((0, "100 %"), (0.1, "110 %"), (0.2, "120 %"), (0.33, "133 % — " + t("zoom_crop"))):
-            zoom.addAction(txt, lambda v=val: setattr(self.mpv, "video_zoom", v))
-        m.addSeparator()
         a = m.addAction(style.icon("fa6s.thumbtack"), t("on_top") + "\tT", self.toggle_on_top)
         a.setCheckable(True)
         a.setChecked(bool(self.cfg.get("on_top")))
+        m.addSeparator()
         m.addAction(style.icon("fa6s.camera"), t("screenshot") + "\tCtrl+S", self.screenshot)
         m.addAction(style.icon("fa6s.circle-info"), t("stats") + "\tI", self.toggle_stats)
         if self.path and os.path.exists(self.path):
             m.addAction(style.icon("fa6s.folder-open"), t("show_in_folder"), lambda: winint.show_in_explorer(self.path))
         m.addSeparator()
-        m.addAction(style.icon("fa6s.gear"), t("settings") + "\tCtrl+,", self.settings_dialog)
+        self._fill_help(m)
+
+    def _fill_help(self, m: QMenu):
+        m.addAction(style.icon("fa6s.gear"), t("settings") + "…\tCtrl+,", self.settings_dialog)
         m.addAction(style.icon("fa6s.keyboard"), t("keys") + "\tF1", self.keys_dialog)
+        m.addAction(style.icon("fa6s.circle-question"), t("about") + "…", self.about_dialog)
 
     def show_context_menu(self, pos: QPoint):
         m = QMenu(self)
         m.addAction(style.icon("fa6s.file-video"), t("open_file") + "\tCtrl+O", self.open_dialog)
         m.addAction(style.icon("fa6s.folder-open"), t("open_folder"), self.open_folder_dialog)
+        m.addAction(style.icon("fa6s.globe"), t("open_url") + "\tCtrl+U", self.open_url_dialog)
         recent = [p for p in self.cfg.get("recent", []) if os.path.exists(p)][:10]
         if recent:
             rm = m.addMenu(style.icon("fa6s.clock-rotate-left"), t("recent_menu"))
@@ -1363,7 +1495,8 @@ class PlayerWindow(QMainWindow):
                 txt = os.path.basename(os.path.normpath(p))
                 if p in saved:
                     txt += "   ·   " + t("resume_at", fmt_time(saved[p]))
-                rm.addAction(style.icon("fa6s.circle-play" if p in saved else "fa6s.film"), txt,
+                ic = style.format_icon(p) if p not in saved else None
+                rm.addAction(ic or style.icon("fa6s.circle-play" if p in saved else "fa6s.film"), txt,
                              lambda p=p: self.open_paths([p]))
         if self.path:
             m.addSeparator()
@@ -1378,7 +1511,9 @@ class PlayerWindow(QMainWindow):
             m.addAction(style.icon("fa6s.xmark"), t("close_file"), self.close_file)
         else:
             m.addSeparator()
-            m.addAction(style.icon("fa6s.gear"), t("settings"), self.settings_dialog)
+            self._fill_repeat_menu(m.addMenu(style.icon("fa6s.repeat"), t("set_repeat")))
+            m.addSeparator()
+            self._fill_help(m)
         m.exec(pos)
 
     def _load_subs(self):
@@ -1462,22 +1597,149 @@ class PlayerWindow(QMainWindow):
             self.close()
 
     # ── dialogs ───────────────────────────────────────────────
-    def settings_dialog(self):
+    def settings_dialog(self, tab: int = 0):
         from .dialogs import SettingsDialog
-        d = SettingsDialog(self.cfg, self)
+        was_on_top = bool(self.cfg.get("on_top"))
+        d = SettingsDialog(self.cfg, self, self._get("audio-device-list", []) or [], tab)
         if d.exec():
             config.save(self.cfg)
-            try:
-                self.mpv.hwdec = "auto-safe" if self.cfg.get("hwdec") else "no"
-                self.mpv.alang = self.cfg.get("alang", "")
-                self.mpv.slang = self.cfg.get("slang", "")
-                if self.cfg.get("screenshot_dir"):
-                    self.mpv.screenshot_directory = self.cfg["screenshot_dir"]
-            except Exception:
-                pass
+            self.apply_prefs()
+            self.apply_smooth()
+            if d.reset_all:
+                self.apply_picture()
+                self.apply_audio(quiet=True)
+            if bool(self.cfg.get("on_top")) != was_on_top and not self.mini:
+                self.cfg["on_top"] = was_on_top
+                self.toggle_on_top()
             self.bubble.want_images = bool(self.cfg.get("thumbs", True))
             if d.lang_changed:
                 QMessageBox.information(self, APP_TITLE, t("restart_lang"))
+
+    def about_dialog(self):
+        from .dialogs import AboutDialog
+        AboutDialog(self).exec()
+
+    # ── settings → mpv ───────────────────────────────────────
+    QUALITY = {
+        "fast":   {"scale": "bilinear", "cscale": "bilinear", "dscale": "bilinear", "correct-downscaling": False,
+                   "linear-downscaling": False, "sigmoid-upscaling": False},
+        "normal": {"scale": "lanczos", "cscale": "lanczos", "dscale": "hermite", "correct-downscaling": True,
+                   "linear-downscaling": True, "sigmoid-upscaling": True},
+        "high":   {"scale": "ewa_lanczossharp", "cscale": "ewa_lanczossharp", "dscale": "mitchell",
+                   "correct-downscaling": True, "linear-downscaling": True, "sigmoid-upscaling": True},
+    }
+    SUB_BORDERS = {"thin": 1.6, "normal": 2.6, "thick": 3.8}
+
+    def _set(self, name: str, value, fallback=None) -> bool:
+        """Set one mpv option/property; an older libmpv may not know a value — then the fallback."""
+        try:
+            self.mpv[name] = value
+            return True
+        except Exception:
+            if fallback is not None:
+                try:
+                    self.mpv[name] = fallback
+                    return True
+                except Exception:
+                    pass
+        return False
+
+    def apply_prefs(self):
+        """Everything from Settings that lives in mpv (called at start and after the Settings dialog)."""
+        c = self.cfg
+        self._set("hwdec", "auto-safe" if c.get("hwdec", True) else "no")
+        self._set("alang", c.get("alang", ""))
+        self._set("slang", c.get("slang", ""))
+        self._set("screenshot-directory", c.get("screenshot_dir") or
+                  os.path.join(winint.pictures_dir(), "ArtCore Player"))
+        self._set("screenshot-format", c.get("screenshot_format", "png"), "png")
+        for k, v in self.QUALITY.get(c.get("quality", "normal"), self.QUALITY["normal"]).items():
+            self._set(k, v, "mitchell" if k == "dscale" else None)
+        self._set("deband", bool(c.get("deband")))
+        self._set("deinterlace", c.get("deinterlace", "auto"), "no")
+        self._set("tone-mapping", c.get("tone_mapping", "auto"), "auto")
+        self._set("audio-device", c.get("audio_device") or "auto", "auto")
+        self._set("audio-channels", c.get("audio_channels", "auto-safe"), "auto-safe")
+        self._set("audio-exclusive", bool(c.get("audio_exclusive")))
+        self._set("audio-pitch-correction", bool(c.get("pitch", True)))
+        vmax = int(c.get("volume_max", 150))
+        self._set("volume-max", vmax)
+        self.vol.setMaximum(vmax)
+        if int(c.get("volume", 80)) > vmax:
+            self._set("volume", vmax)
+        self._set("sub-auto", c.get("sub_auto", "fuzzy"))
+        self._set("sub-codepage", c.get("sub_codepage", "auto"), "auto")
+        self._set("sub-font", c.get("sub_font") or "sans-serif")
+        self._set("sub-scale", float(c.get("sub_scale", 1.0)))
+        self._set("sub-color", c.get("sub_color", "#FFFFFF"))
+        self._set("sub-border-size", self.SUB_BORDERS.get(c.get("sub_border", "normal"), 2.6))
+        self._set("sub-bold", bool(c.get("sub_bold")))
+        self._set("sub-ass-override", "force" if c.get("sub_force_style") else "yes")
+        self._set("loop-file", "inf" if c.get("repeat") == "file" else "no")
+        self.idle.setInterval(int(float(c.get("hide_delay", 2.6)) * 1000))
+
+    def set_quality(self, q: str):
+        self.cfg["quality"] = q
+        config.save(self.cfg)
+        for k, v in self.QUALITY[q].items():
+            self._set(k, v, "mitchell" if k == "dscale" else None)
+        self.toast.show_text(t("set_quality") + ": " + t("q_menu_" + q), 1500)
+
+    def toggle_pref(self, key: str, prop: str, label: str):
+        self.cfg[key] = not self.cfg.get(key)
+        config.save(self.cfg)
+        self._set(prop, bool(self.cfg[key]))
+        self.toast.show_text(f"{label}: {t('on') if self.cfg[key] else t('off')}", 1300)
+
+    def set_deint(self, mode: str):
+        self.cfg["deinterlace"] = mode
+        config.save(self.cfg)
+        self._set("deinterlace", mode, "no")
+        self.toast.show_text(t("deint") + ": " + t("deint_" + mode).split(" (")[0], 1300)
+
+    def rotate(self, deg: int | None = None):
+        cur = int(self._get("video-rotate", 0) or 0)
+        val = (cur + 90) % 360 if deg is None else deg
+        self._set("video-rotate", val)
+        self.toast.show_text(t("rotate_v", val), 1200)
+
+    def set_audio_device(self, name: str, desc: str):
+        self.cfg["audio_device"] = name
+        config.save(self.cfg)
+        self._set("audio-device", name, "auto")
+        self.toast.show_text(t("adevice_toast", desc), 1800)
+
+    def set_channels(self, ch: str):
+        self.cfg["audio_channels"] = ch
+        config.save(self.cfg)
+        self._set("audio-channels", ch, "auto-safe")
+        self.toast.show_text(t("ch_menu") + ": " + t(dict(CHANNEL_KEYS)[ch]).split(" (")[0].split(" —")[0], 1500)
+
+    def set_codepage(self, cp: str):
+        from .dialogs import codepage_name
+        self.cfg["sub_codepage"] = cp
+        config.save(self.cfg)
+        self._set("sub-codepage", cp, "auto")
+        try:
+            if self._get("sid") not in (None, False, "no"):
+                self.mpv.command("sub-reload")
+        except Exception:
+            pass
+        self.toast.show_text(t("cp_toast", codepage_name(cp)), 1600)
+
+    def set_sub_scale(self, v: float):
+        self.cfg["sub_scale"] = v
+        config.save(self.cfg)
+        self._set("sub-scale", v)
+
+    def open_url_dialog(self):
+        from PySide6.QtWidgets import QInputDialog
+        clip = QApplication.clipboard().text().strip()
+        guess = clip if re.match(r"^(https?|rtmp|rtsp|mms|udp|rtp|srt)://\S+$", clip, re.I) else ""
+        url, ok = QInputDialog.getText(self, t("open_url").rstrip("…"), t("open_url_q"), text=guess)
+        url = (url or "").strip()
+        if ok and url:
+            self.open_paths([url])
 
     def keys_dialog(self):
         from .dialogs import KeysDialog
@@ -1487,7 +1749,8 @@ class PlayerWindow(QMainWindow):
     def keyPressEvent(self, e):
         k, mod = e.key(), e.modifiers()
         ctrl, shift = bool(mod & Qt.ControlModifier), bool(mod & Qt.ShiftModifier)
-        step = 60 if shift else 10 if ctrl else 5
+        step = 60 if shift else 10 if ctrl else int(self.cfg.get("seek_step", 5))
+        vstep = int(self.cfg.get("vol_step", 5))
         if k in (Qt.Key_Space, Qt.Key_K, Qt.Key_MediaPlay, Qt.Key_MediaPause, Qt.Key_MediaTogglePlayPause):
             self.toggle_pause()
         elif k == Qt.Key_Right:
@@ -1495,9 +1758,9 @@ class PlayerWindow(QMainWindow):
         elif k == Qt.Key_Left:
             self.seek_rel(-step)
         elif k == Qt.Key_Up:
-            self.change_volume(5)
+            self.change_volume(vstep)
         elif k == Qt.Key_Down:
-            self.change_volume(-5)
+            self.change_volume(-vstep)
         elif k in (Qt.Key_F, Qt.Key_Return, Qt.Key_Enter) and not ctrl:
             self.toggle_fullscreen()
         elif k == Qt.Key_Escape:
@@ -1531,7 +1794,12 @@ class PlayerWindow(QMainWindow):
             self.picture_dialog()
         elif k == Qt.Key_H:
             self.toggle_smooth()
-
+        elif k == Qt.Key_R and ctrl:
+            self.rotate()
+        elif k == Qt.Key_R:
+            self.cycle_repeat()
+        elif k == Qt.Key_U and ctrl:
+            self.open_url_dialog()
         elif k == Qt.Key_PageDown and not shift and self.chapter_step(1):
             pass                                   # chapters first; Shift+PgDn / N always go to the next file
         elif k == Qt.Key_PageUp and not shift and self.chapter_step(-1):

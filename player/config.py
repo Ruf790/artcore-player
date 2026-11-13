@@ -19,7 +19,7 @@ DEFAULTS = {
     "alang":         "rus,ru,russian,eng,en",   # preferred audio languages
     "slang":         "",                         # preferred subtitle languages, "" = only forced/default
     "screenshot_dir": "",
-    "remaining_time": False,
+    "remaining_time": False,        # time label shows -remaining instead of the duration
     "thumbs":        True,          # frame previews over the seek bar
     "audio_mode":    "off",         # off | night | level | dialog
     "eq":            [0] * 10,      # equalizer, dB per band (audio.BANDS)
@@ -27,11 +27,38 @@ DEFAULTS = {
     "check_updates": True,
     "last_update_check": 0,
     "update_notified": "",
-    "reopen":        "",
+    "reopen":        "",            # the file that was open when the player updated itself
     "smooth":        False,         # smooth motion: display-resample + interpolation
     "picture":       {"brightness": 0, "contrast": 0, "saturation": 0, "gamma": 0},
     "mini_geometry": [],            # x, y, w, h of the mini player
-    "intros":        {},            # folder → {"a": start, "b": end, "auto": bool}            # the file that was open when the player updated itself        # time label shows -remaining instead of the duration
+    "intros":        {},            # folder → {"a": start, "b": end, "auto": bool}
+    # 1.3.0
+    "seek_step":     5,             # ← → (Ctrl: 10 s, Shift: 1 min)
+    "vol_step":      5,             # ↑ ↓ / wheel
+    "repeat":        "off",         # off | file | list
+    "start_fullscreen": False,
+    "pause_minimized": False,
+    "keep_speed":    True,          # the speed stays for the next file (off: every file starts at 1×)
+    "pitch":         True,          # audio-pitch-correction
+    "quality":       "normal",      # fast | normal | high (scalers)
+    "deband":        False,
+    "deinterlace":   "auto",        # auto | yes | no
+    "tone_mapping":  "auto",        # auto | bt.2446a | spline | hable | mobius
+    "screenshot_format": "png",     # png | jpg | webp
+    "screenshot_subs": True,
+    "audio_device":  "auto",
+    "audio_channels": "auto-safe",  # auto-safe | stereo | 5.1 | 7.1
+    "audio_exclusive": False,
+    "volume_max":    150,
+    "sub_font":      "",
+    "sub_scale":     1.0,
+    "sub_color":     "#FFFFFF",
+    "sub_border":    "normal",      # thin | normal | thick
+    "sub_bold":      False,
+    "sub_force_style": False,       # sub-ass-override=force
+    "sub_auto":      "fuzzy",       # fuzzy | exact | no
+    "sub_codepage":  "auto",
+    "hide_delay":    2.6,           # seconds
     "geometry":      "",
     "last_dir":      "",
     "recent":        [],            # most recent first
@@ -77,6 +104,18 @@ def load() -> dict:
     if cfg.get("language") not in ("ru", "en"):
         cfg["language"] = "ru"
     return cfg
+
+
+KEEP_ON_RESET = ("language", "recent", "positions", "intros", "geometry", "last_dir", "mini_geometry",
+                 "last_update_check", "update_notified", "reopen", "volume", "muted")
+
+
+def reset(cfg: dict) -> None:
+    """Every setting back to default; history, resume positions, intros and the window stay."""
+    keep = {k: cfg.get(k) for k in KEEP_ON_RESET if k in cfg}
+    cfg.clear()
+    cfg.update(copy.deepcopy(DEFAULTS))
+    cfg.update(keep)
 
 
 def save(cfg: dict) -> None:

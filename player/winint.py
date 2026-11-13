@@ -91,3 +91,34 @@ def show_in_explorer(path: str) -> None:
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
         QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(path)))
+
+
+def open_folder(path: str) -> None:
+    if IS_WIN:
+        try:
+            os.startfile(os.path.normpath(path))          # noqa: S606 — a folder of ours
+            return
+        except OSError:
+            pass
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+
+def suspend() -> None:
+    """Sleep (hibernates instead if Windows has hibernation switched on — the system decides)."""
+    if IS_WIN:
+        import ctypes
+        try:
+            ctypes.windll.powrprof.SetSuspendState(False, False, False)
+        except Exception:
+            pass
+
+
+def shutdown() -> None:
+    if IS_WIN:
+        import subprocess
+        try:
+            subprocess.Popen(["shutdown", "/s", "/t", "0"], creationflags=0x08000000)   # CREATE_NO_WINDOW
+        except Exception:
+            pass

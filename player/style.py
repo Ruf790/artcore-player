@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPainterPath
 
 ACCENT = "#0d6efd"
 ACCENT2 = "#6f42c1"
+ACCENT_LIGHT = "#6ea8fe"
 BG = "#0f1115"
 PANEL = "#171a21"
 PANEL2 = "#1f232c"
@@ -59,6 +60,27 @@ def app_icon_pixmap(size: int = 256) -> QPixmap:
     p.drawPath(tri)
     p.end()
     return pm
+
+
+def format_icon(path: str) -> QIcon | None:
+    """The file-type icon of a video (assets/formats/<ext>.ico — next to the exe in a build); None if there is none."""
+    import os
+    from . import config
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    if not ext or "://" in path:
+        return None
+    cache = _FMT_CACHE
+    if ext not in cache:
+        cache[ext] = None
+        for d in (os.path.join(config.app_dir(), "formats"), os.path.join(config.app_dir(), "assets", "formats")):
+            p = os.path.join(d, ext + ".ico")
+            if os.path.isfile(p):
+                cache[ext] = QIcon(p)
+                break
+    return cache[ext]
+
+
+_FMT_CACHE: dict = {}
 
 
 def app_icon() -> QIcon:
@@ -116,6 +138,13 @@ QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; im
 QLineEdit, QComboBox {{ background: {PANEL2}; border: 1px solid {BORDER}; border-radius: 8px; padding: 6px 9px; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
 QComboBox QAbstractItemView {{ background: {PANEL}; border: 1px solid {BORDER}; selection-background-color: {ACCENT}; }}
+QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background: {PANEL}; top: -1px; }}
+QTabBar::tab {{ background: transparent; color: {MUTED}; padding: 8px 12px; margin-right: 2px;
+                border-top-left-radius: 8px; border-top-right-radius: 8px; }}
+QTabBar::tab:hover {{ color: {TEXT}; background: {PANEL2}; }}
+QTabBar::tab:selected {{ color: #ffffff; background: {PANEL}; border: 1px solid {BORDER}; border-bottom: 2px solid {ACCENT}; }}
+QProgressBar {{ background: {PANEL2}; border: 1px solid {BORDER}; border-radius: 6px; height: 10px; text-align: center; }}
+QProgressBar::chunk {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {ACCENT}, stop:1 {ACCENT2}); border-radius: 5px; }}
 QScrollBar:vertical {{ background: transparent; width: 8px; margin: 0; }}
 QScrollBar::handle:vertical {{ background: rgba(255,255,255,50); border-radius: 4px; min-height: 30px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
