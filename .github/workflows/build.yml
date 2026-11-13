@@ -136,6 +136,7 @@ jobs:
         run: |
           Copy-Item LICENSE dist/ArtCorePlayer/LICENSE.txt
           Copy-Item THIRD-PARTY.md dist/ArtCorePlayer/THIRD-PARTY.txt
+          Copy-Item -Recurse assets/formats dist/ArtCorePlayer/formats
           Set-Content dist/ArtCorePlayer/portable.ini "[ArtCore]`r`n; delete this file to use %APPDATA%\ArtCorePlayer"
           Compress-Archive -Path dist/ArtCorePlayer -DestinationPath installer/ArtCorePlayer-portable.zip
 
