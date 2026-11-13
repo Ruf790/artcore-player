@@ -323,6 +323,21 @@ STRINGS = {
     "k_repeat":       ("Повтор: выкл. → файл → плейлист", "Repeat: off → file → playlist"),
     "k_rotate":       ("Повернуть на 90°", "Rotate 90°"),
     "k_url":          ("Открыть адрес (URL)", "Open address (URL)"),
+    # ── 1.4.0: upmix, Windows media controls, Jump List
+    "upmix":          ("Стерео → 5.1 (звук на все колонки)", "Stereo → 5.1 (sound on every speaker)"),
+    "upmix_hint":     ("Голоса уходят в центр, бас в сабвуфер, атмосфера в тыловые. Только для стерео — многоканальный "
+                       "звук не трогается. У Sound Blaster есть свой апмикс (SBX / DTS Neo:PC) — включайте что-то одно.",
+                       "Voices go to the centre, bass to the subwoofer, ambience to the rears. Stereo only — multichannel "
+                       "sound is left alone. Sound Blaster has its own upmix (SBX / DTS Neo:PC) — use one of them."),
+    "upmix_on":       ("Стерео → 5.1: вкл.", "Stereo → 5.1: on"),
+    "upmix_off":      ("Стерео → 5.1: выкл.", "Stereo → 5.1: off"),
+    "upmix_not_stereo": ("Стерео → 5.1: вкл. (сработает на стерео-звуке, сейчас {0})",
+                         "Stereo → 5.1: on (works on stereo sound, now {0})"),
+    "set_smtc":       ("Медиа-панель Windows и мультимедийные клавиши ⏮ ⏯ ⏭ (и когда окно не активно)",
+                       "Windows media panel and the media keys ⏮ ⏯ ⏭ (also when the window is not active)"),
+    "set_jumplist":   ("Недавние в списке по правому клику на значке в панели задач",
+                       "Recent files in the right-click list of the taskbar button"),
+    "k_upmix":        ("Стерео → 5.1 вкл. / выкл.", "Stereo → 5.1 on / off"),
     "mpv_missing":    ("Не найден движок mpv (libmpv-2.dll).\n\nПереустановите ArtCore Player.\n\n{0}",
                        "The mpv engine (libmpv-2.dll) was not found.\n\nReinstall ArtCore Player.\n\n{0}"),
 }

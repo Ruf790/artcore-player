@@ -59,6 +59,10 @@ DEFAULTS = {
     "sub_auto":      "fuzzy",       # fuzzy | exact | no
     "sub_codepage":  "auto",
     "hide_delay":    2.6,           # seconds
+    # 1.4.0
+    "upmix":         False,         # stereo → 5.1 (ffmpeg surround), for 5.1 speaker sets
+    "smtc":          True,          # Windows media controls + media keys
+    "jumplist":      True,          # recent files in the taskbar Jump List
     "geometry":      "",
     "last_dir":      "",
     "recent":        [],            # most recent first

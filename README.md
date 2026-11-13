@@ -23,6 +23,11 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
   Windows-1251, font, size, colour, outline, own style for ASS), interface, system (settings folder, reset)
 - repeat (file / playlist, R), rotation (Ctrl+R), open a URL / stream (Ctrl+U), "when playback ends": close the
   player, sleep or shut down the PC (with a 30-second countdown)
+- stereo → 5.1 upmix for 5.1 speaker sets (voices to the centre, bass to the sub, ambience to the rears; U)
+- Windows media panel (the card over the volume flyout and on the lock screen, with a frame of the film) and the
+  media keys ⏮ ⏯ ⏭ — also when the player is not the active window
+- Jump List: right click on the taskbar button — recent films with their format icon and resume time,
+  "Open file…", "Open address…"
 - About window: versions of the player, mpv, FFmpeg and Qt, decoding in use, "copy details" for bug reports
 - its own icon for every video format in Explorer (MKV, MP4, AVI, M2TS, VOB, HEVC, ISO…), also in the playlist —
   `tools/make_format_icons.py` draws them and writes the installer block
@@ -32,7 +37,7 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
 
 Space — pause · F / double-click — fullscreen · ← → step from Settings, 5 s by default (Ctrl 10 s, Shift 1 min) · ↑ ↓ / wheel — volume ·
 A — audio track · S — subtitles · Z / X — subtitle delay · [ ] — speed · PgUp / PgDn — previous / next ·
-L — playlist · I — file info · R — repeat · Ctrl+R — rotate · Ctrl+U — open URL · Ctrl+S — screenshot · F1 — all keys
+L — playlist · I — file info · R — repeat · Ctrl+R — rotate · Ctrl+U — open URL · U — stereo → 5.1 · Ctrl+S — screenshot · F1 — all keys
 
 ## Build
 
