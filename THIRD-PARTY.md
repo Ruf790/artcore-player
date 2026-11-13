@@ -9,6 +9,8 @@ It contains the following components:
 | [FFmpeg](https://ffmpeg.org), libplacebo, libass and other libraries inside libmpv | decoding, rendering, subtitles | GPL / LGPL |
 | [Qt 6](https://www.qt.io) via [PySide6](https://pypi.org/project/PySide6/) | user interface | LGPL v3 |
 | [python-mpv](https://github.com/jaseg/python-mpv) | Python binding for libmpv | GPL v2+ or LGPL v2.1+ |
+| [pywinrt](https://github.com/pywinrt/pywinrt) (`winrt-*`) | Windows media controls (SMTC) | MIT |
+| [comtypes](https://github.com/enthought/comtypes) | taskbar Jump List | MIT |
 | [QtAwesome](https://github.com/spyder-ide/qtawesome) | icons | MIT |
 | [Font Awesome Free](https://fontawesome.com) (inside QtAwesome) | icon font | SIL OFL 1.1 (font), CC BY 4.0 (icons) |
 | Python | runtime | PSF License |

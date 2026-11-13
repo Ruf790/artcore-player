@@ -180,8 +180,18 @@ class PlayerWindow(QMainWindow):
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.after_action = "nothing"          # when playback ends: nothing | close | sleep | shutdown (this session)
         self._paused_by_minimize = False
+        self.smtc = None
+        self._smtc_sent = (0.0, -1.0)                 # (time, position) of the last timeline update
+        self._smtc_frame: tuple[str, float] | None = None
+        self._media_key_at = (None, 0.0)              # a media key Qt already handled (no double press via SMTC)
+        self.jl_timer = QTimer(self)
+        self.jl_timer.setSingleShot(True)
+        self.jl_timer.setInterval(1500)
+        self.jl_timer.timeout.connect(self.update_jumplist)
         self.apply_prefs()
         self.apply_picture()
+        QTimer.singleShot(0, self._setup_smtc)
+        self.jl_timer.start()
         QTimer.singleShot(0, self.apply_smooth)
         self._set_idle_view(True)
         self.layout_overlays()
@@ -530,6 +540,8 @@ class PlayerWindow(QMainWindow):
         else:
             self.mpv.play(self.path)
         self.plpanel.set_items(self.playlist, self.index)
+        self._smtc_track()
+        self.jl_timer.start()
         self.b_prev.setEnabled(idx > 0)
         self.b_next.setEnabled(idx < len(self.playlist) - 1)
         self.poke()
@@ -552,6 +564,8 @@ class PlayerWindow(QMainWindow):
         self.index = -1
         self.paused = True
         self._set_idle_view(True)
+        self._smtc_status()
+        self.jl_timer.start()
 
     # ── resume ────────────────────────────────────────────────
     def _save_position(self):
@@ -575,6 +589,8 @@ class PlayerWindow(QMainWindow):
         self._update_badges()
         self._af = None
         self.apply_audio(quiet=True)
+        self._smtc_request_frame()
+        self._smtc_status()
 
     def _on_failed(self, code: int):
         if not self.path:
@@ -598,6 +614,7 @@ class PlayerWindow(QMainWindow):
                 return
             self.b_play.setIcon(style.icon("fa6s.play" if self.paused else "fa6s.pause", "#ffffff"))
             self.b_play.setToolTip((t("play") if self.paused else t("pause")) + " (Space)")
+            self._smtc_status()
             if self.paused:
                 self.poke()
                 self.idle.stop()
@@ -720,6 +737,7 @@ class PlayerWindow(QMainWindow):
             right = fmt_time(dur, force_h)
         self.time_lbl.setText(f"{fmt_time(self.position, force_h)} / {right}")
         self._check_intro()
+        self._smtc_timeline()
 
     def _check_intro(self):
         intro = self.intro_for(self.path)
@@ -786,7 +804,8 @@ class PlayerWindow(QMainWindow):
             out.append(({"HEVC": "HEVC", "AVC": "AVC", "AV1": "AV1", "VP9": "VP9"}.get(codec, codec[:8]), False))
         ch = int(ap.get("channel-count") or at.get("demux-channel-count") or 0)
         if ch:
-            out.append(({1: "1.0", 2: "2.0", 3: "2.1", 6: "5.1", 7: "6.1", 8: "7.1"}.get(ch, f"{ch}ch"), False))
+            label = {1: "1.0", 2: "2.0", 3: "2.1", 6: "5.1", 7: "6.1", 8: "7.1"}.get(ch, f"{ch}ch")
+            out.append((label + (" → 5.1" if audio.upmix_active(self.cfg, ch) else ""), False))
         acodec = str(at.get("codec") or "").upper()
         if acodec in ("TRUEHD", "DTS", "EAC3", "AC3", "FLAC", "OPUS", "AAC"):
             out.append(({"EAC3": "DD+", "AC3": "DD", "TRUEHD": "TrueHD"}.get(acodec, acodec), False))
@@ -866,6 +885,9 @@ class PlayerWindow(QMainWindow):
         self.bubble.raise_()
 
     def _thumb_ready(self, path: str, bucket: float, img):
+        if self._smtc_frame == (path, bucket):
+            self._smtc_frame = None
+            self._smtc_track(img)
         if path == self.path and self.bubble.isVisible() and abs(bucket - self._hover[0]) < 1e-6:
             self._show_preview(bucket, self._hover[1], img)
 
@@ -1268,7 +1290,8 @@ class PlayerWindow(QMainWindow):
         ap = self._get("audio-params", {}) or {}
         ch = int(ap.get("channel-count") or 2)
         layout = str(ap.get("channels") or "")
-        af = audio.build(self.cfg.get("audio_mode", "off"), self.cfg.get("eq", [0] * 10), ch, layout)
+        af = audio.build(self.cfg.get("audio_mode", "off"), self.cfg.get("eq", [0] * 10), ch, layout,
+                         audio.upmix_active(self.cfg, ch))
         if af == self._af:
             return
         try:
@@ -1322,6 +1345,10 @@ class PlayerWindow(QMainWindow):
         ch = m.addMenu(style.icon("fa6s.circle-nodes"), t("ch_menu"))
         self._radio(ch, [(v, t(k)) for v, k in CHANNEL_KEYS], self.cfg.get("audio_channels", "auto-safe"),
                     self.set_channels)
+        up = m.addAction(style.icon("fa6s.expand", style.ACCENT_LIGHT if self.cfg.get("upmix") else style.TEXT),
+                         t("upmix") + "\tU", self.toggle_upmix)
+        up.setCheckable(True)
+        up.setChecked(bool(self.cfg.get("upmix")))
         dev = m.addMenu(style.icon("fa6s.volume-high"), t("adevice"))
         devs = [("auto", t("adevice_auto"))] + [(str(d.get("name")), str(d.get("description") or d.get("name")))
                                                for d in (self._get("audio-device-list", []) or [])
@@ -1536,6 +1563,138 @@ class PlayerWindow(QMainWindow):
         self.mpv.sub_delay = 0 if v is None else cur + v
         self.toast.show_text(t("sub_delay", f"{float(self._get('sub-delay', 0)):+.1f}"), 1100)
 
+    # ── stereo → 5.1 ─────────────────────────────────────────
+    def toggle_upmix(self):
+        self.cfg["upmix"] = not self.cfg.get("upmix")
+        config.save(self.cfg)
+        self._af = None
+        self.apply_audio()
+        self._update_badges()
+        ap = self._get("audio-params", {}) or {}
+        ch = int(ap.get("channel-count") or 0)
+        if self.cfg["upmix"] and self.path and ch and ch != 2:
+            self.toast.show_text(t("upmix_not_stereo", {1: "1.0", 6: "5.1", 8: "7.1"}.get(ch, f"{ch} ch")), 2200)
+        else:
+            self.toast.show_text(t("upmix_on") if self.cfg["upmix"] else t("upmix_off"), 1500)
+
+    # ── Windows media controls (the card over the volume flyout, media keys) ──
+    def _setup_smtc(self):
+        want = bool(self.cfg.get("smtc", True)) and winint.IS_WIN
+        if want and self.smtc is None:
+            try:
+                from .smtc import Smtc
+                self.smtc = Smtc()
+            except Exception:
+                self.smtc = None
+                return
+            self.smtc.button.connect(self._smtc_button)
+            self.smtc.seek.connect(self.seek_abs)
+            if self.path:
+                self._smtc_track()
+            self._smtc_status()
+        elif not want and self.smtc is not None:
+            self.smtc.stop()
+            self.smtc = None
+
+    def _smtc_title(self) -> tuple[str, str]:
+        p = self.path
+        if self.disc:
+            kind, dev = self.disc
+            return os.path.basename(os.path.normpath(dev)), "Blu-ray" if kind == "bd" else "DVD"
+        if not os.path.exists(p):
+            return str(self._get("media-title", "") or p), APP_TITLE
+        folder = os.path.basename(os.path.dirname(os.path.abspath(p)))
+        return os.path.splitext(os.path.basename(p))[0], folder
+
+    def _smtc_track(self, img=None):
+        if self.smtc is None or not self.path:
+            return
+        from PySide6.QtCore import QBuffer, QIODevice
+        buf = QBuffer()
+        buf.open(QIODevice.WriteOnly)
+        (img if img is not None else style.app_icon_pixmap(256)).save(buf, "PNG")
+        title, sub = self._smtc_title()
+        self.smtc.set_track(title, sub, bytes(buf.data()))
+        self._smtc_timeline(force=True)
+
+    def _smtc_request_frame(self):
+        """A frame of the film for the card: 10 % in (at most 5 min), by the seek-bar thumbnailer."""
+        if self.smtc is None or not self.duration or self.disc or not os.path.exists(self.path):
+            return
+        sec = float(int(min(self.duration * 0.1, 300)))
+        self._smtc_frame = (self.path, sec)
+        img = self.thumbs.request(sec, sec)
+        if img is not None:
+            self._smtc_frame = None
+            self._smtc_track(img)
+
+    def _smtc_button(self, name: str):
+        key, at = self._media_key_at
+        if key and time.monotonic() - at < 0.5:
+            return                                    # Qt got this key already (the window is active)
+        if name == "play":
+            if not self.path or self.paused:
+                self.toggle_pause()
+        elif name in ("pause", "stop"):
+            if self.path and not self.paused:
+                self.mpv.pause = True
+        elif name == "next":
+            self.play_next()
+        elif name == "prev":
+            self.play_prev()
+
+    def _smtc_status(self):
+        if self.smtc is None:
+            return
+        self.smtc.set_status("closed" if not self.path else "paused" if self.paused else "playing")
+        self._smtc_timeline(force=True)
+
+    def _smtc_timeline(self, force: bool = False):
+        """The position on the card: on every change of state, else every 5 s (as Windows asks)."""
+        if self.smtc is None or not self.path or not self.duration:
+            return
+        now = time.monotonic()
+        t0, p0 = self._smtc_sent
+        expect = p0 + (now - t0 if not self.paused else 0)
+        if force or now - t0 > 5 or abs(self.position - expect) > 2:
+            self._smtc_sent = (now, self.position)
+            self.smtc.set_timeline(self.position, self.duration)
+
+    # ── taskbar Jump List ─────────────────────────────────────
+    def update_jumplist(self):
+        if not winint.IS_WIN:
+            return
+        from . import APP_ID, jumplist
+        if not self.cfg.get("jumplist", True):
+            jumplist.clear(APP_ID)
+            return
+        saved = self.cfg.get("positions", {}) or {}
+        recent = []
+        for p in self.cfg.get("recent", []):
+            local = "://" not in p
+            if local and not os.path.exists(p):
+                continue
+            name = os.path.basename(os.path.normpath(p)) if local else p
+            if p in saved:
+                name += "  ·  " + fmt_time(saved[p])
+            ext = os.path.splitext(p)[1].lower().lstrip(".")
+            icon = os.path.join(config.app_dir(), "formats", ext + ".ico") if local and ext else ""
+            recent.append((name, p, icon if icon and os.path.isfile(icon) else ""))
+        tasks = [(t("open_file") + "…", "--open-dialog", ""), (t("open_url"), "--open-url", "")]
+        ok, err, gone = jumplist.update(APP_ID, recent, tasks, t("recent_menu"))
+        self._jumplist_result = (ok, err)
+        if gone:
+            g = {os.path.normcase(x) for x in gone}
+            self.cfg["recent"] = [p for p in self.cfg.get("recent", []) if os.path.normcase(p) not in g]
+            config.save(self.cfg)
+
+    def run_command(self, cmd: str):
+        """--open-dialog / --open-url from the Jump List (or a second copy of the player)."""
+        if cmd == "--open-dialog":
+            self.open_dialog()
+        elif cmd == "--open-url":
+            self.open_url_dialog()
+
     # ── updates ───────────────────────────────────────────────
     UPDATE_EVERY = 24 * 3600
 
@@ -1612,6 +1771,11 @@ class PlayerWindow(QMainWindow):
                 self.cfg["on_top"] = was_on_top
                 self.toggle_on_top()
             self.bubble.want_images = bool(self.cfg.get("thumbs", True))
+            self._af = None
+            self.apply_audio(quiet=True)
+            self._update_badges()
+            self._setup_smtc()
+            self.jl_timer.start()
             if d.lang_changed:
                 QMessageBox.information(self, APP_TITLE, t("restart_lang"))
 
@@ -1751,7 +1915,14 @@ class PlayerWindow(QMainWindow):
         ctrl, shift = bool(mod & Qt.ControlModifier), bool(mod & Qt.ShiftModifier)
         step = 60 if shift else 10 if ctrl else int(self.cfg.get("seek_step", 5))
         vstep = int(self.cfg.get("vol_step", 5))
-        if k in (Qt.Key_Space, Qt.Key_K, Qt.Key_MediaPlay, Qt.Key_MediaPause, Qt.Key_MediaTogglePlayPause):
+        media = {Qt.Key_MediaPlay: "play", Qt.Key_MediaTogglePlayPause: "play", Qt.Key_MediaPause: "pause",
+                 Qt.Key_MediaNext: "next", Qt.Key_MediaPrevious: "prev", Qt.Key_MediaStop: "stop"}.get(k)
+        if media:
+            self._media_key_at = (media, time.monotonic())
+        if k == Qt.Key_MediaStop:
+            if self.path and not self.paused:
+                self.mpv.pause = True
+        elif k in (Qt.Key_Space, Qt.Key_K, Qt.Key_MediaPlay, Qt.Key_MediaPause, Qt.Key_MediaTogglePlayPause):
             self.toggle_pause()
         elif k == Qt.Key_Right:
             self.seek_rel(step)
@@ -1800,6 +1971,8 @@ class PlayerWindow(QMainWindow):
             self.cycle_repeat()
         elif k == Qt.Key_U and ctrl:
             self.open_url_dialog()
+        elif k == Qt.Key_U:
+            self.toggle_upmix()
         elif k == Qt.Key_PageDown and not shift and self.chapter_step(1):
             pass                                   # chapters first; Shift+PgDn / N always go to the next file
         elif k == Qt.Key_PageUp and not shift and self.chapter_step(-1):
@@ -1879,6 +2052,12 @@ class PlayerWindow(QMainWindow):
         QApplication.instance().removeEventFilter(self)
         self.ui_timer.stop()
         self.thumbs.stop()
+        self.jl_timer.stop()
+        if self.cfg.get("jumplist", True) and winint.IS_WIN:
+            self.update_jumplist()                   # the resume times of the last film
+        if self.smtc is not None:
+            self.smtc.stop()
+            self.smtc = None
         try:
             self.video.shutdown()
             self.mpv.terminate()

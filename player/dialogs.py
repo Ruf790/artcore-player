@@ -164,6 +164,9 @@ class SettingsDialog(QDialog):
         f.addRow(self.exclusive)
         self.pitch = _check(t("set_pitch"), c.get("pitch", True))
         f.addRow(self.pitch)
+        self.upmix = _check(t("upmix") + "  (U)", c.get("upmix"))
+        f.addRow(self.upmix)
+        f.addRow(_hint(t("upmix_hint")))
         self.vol_max = _combo([(v, f"{v} %") for v in (100, 130, 150, 200)], int(c.get("volume_max", 150)))
         f.addRow(t("set_vol_max"), self.vol_max)
         self.vol_step = _combo([(v, f"{v} %") for v in (1, 2, 5, 10)], int(c.get("vol_step", 5)))
@@ -214,7 +217,9 @@ class SettingsDialog(QDialog):
         self.thumbs = _check(t("set_thumbs"), c.get("thumbs", True))
         self.remaining = _check(t("set_remaining"), c.get("remaining_time"))
         self.on_top = _check(t("on_top") + "  (T)", c.get("on_top"))
-        for cb in (self.single, self.thumbs, self.remaining, self.on_top):
+        self.smtc = _check(t("set_smtc"), c.get("smtc", True))
+        self.jumplist = _check(t("set_jumplist"), c.get("jumplist", True))
+        for cb in (self.single, self.thumbs, self.remaining, self.on_top, self.smtc, self.jumplist):
             f.addRow(cb)
         self.tabs.addTab(w, style.icon("fa6s.display"), t("tab_ui"))
 
@@ -293,6 +298,7 @@ class SettingsDialog(QDialog):
                  screenshot_subs=self.shot_subs.isChecked(),
                  audio_device=self.adevice.currentData(), audio_channels=self.channels.currentData(),
                  audio_exclusive=self.exclusive.isChecked(), pitch=self.pitch.isChecked(),
+                 upmix=self.upmix.isChecked(), smtc=self.smtc.isChecked(), jumplist=self.jumplist.isChecked(),
                  volume_max=int(self.vol_max.currentData()), vol_step=int(self.vol_step.currentData()),
                  slang=self.slang.text().strip(), sub_auto=self.sub_auto.currentData(),
                  sub_codepage=self.codepage.currentData(), sub_font=font,
@@ -458,7 +464,7 @@ KEYS = [
     ("Home", "k_home"), (". ,", "k_frame"), ("↑ ↓ / wheel", "k_vol"), ("M", "k_mute"),
     ("A", "k_audio"), ("S", "k_subs"), ("Z / X", "k_subdelay"), ("[ ]  Backspace", "k_speed"),
     ("PgUp / PgDn", "k_chapters"), ("Shift + PgUp / PgDn, P / N", "k_prevnext"), ("C", "k_chapter_list"),
-    ("E", "k_eq"), ("D", "k_dialog"), ("Ctrl + Z / X", "k_audiodelay"), ("B", "k_ab"), ("V", "k_picture"),
+    ("E", "k_eq"), ("D", "k_dialog"), ("U", "k_upmix"), ("Ctrl + Z / X", "k_audiodelay"), ("B", "k_ab"), ("V", "k_picture"),
     ("H", "k_smooth"), ("Ctrl + M", "k_mini"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
     ("R", "k_repeat"), ("Ctrl + R", "k_rotate"), ("Ctrl + S", "k_shot"), ("Ctrl + O", "k_open"),
     ("Ctrl + U", "k_url"), ("Ctrl + W", "k_close"), ("Ctrl + ,", "k_settings"),

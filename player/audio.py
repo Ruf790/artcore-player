@@ -1,4 +1,4 @@
-"""Sound processing: night mode, loudness levelling, clear dialogue, a 10-band equalizer."""
+"""Sound processing: stereo → 5.1 upmix, night mode, loudness levelling, clear dialogue, a 10-band equalizer."""
 from __future__ import annotations
 
 BANDS = (31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
@@ -37,6 +37,19 @@ def mode_filter(mode: str, channels: int, layout: str = "") -> str:
     return ""
 
 
-def build(mode: str, gains, channels: int, layout: str = "") -> str:
-    parts = [p for p in (mode_filter(mode, channels, layout), eq_filter(gains)) if p]
+UPMIX = "lavfi=[surround=chl_out=5.1:lfe=1]"     # the same filter as ArtCore Music
+
+
+def build(mode: str, gains, channels: int, layout: str = "", upmix: bool = False) -> str:
+    """upmix: a stereo source becomes 5.1 first (voices to the centre, bass to the sub, ambience to the rears);
+    the sound modes then work on 6 channels (clear dialogue lifts the new centre)."""
+    parts = []
+    if upmix and channels == 2:
+        parts.append(UPMIX)
+        channels, layout = 6, "5.1"
+    parts += [p for p in (mode_filter(mode, channels, layout), eq_filter(gains)) if p]
     return ",".join(parts)
+
+
+def upmix_active(cfg: dict, channels: int) -> bool:
+    return bool(cfg.get("upmix")) and channels == 2 and cfg.get("audio_channels", "auto-safe") != "stereo"
