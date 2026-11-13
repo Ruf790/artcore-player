@@ -49,6 +49,8 @@ class SeekBar(QWidget):
         self.position = 0.0
         self.cached: list[tuple[float, float]] = []
         self.chapters: list[float] = []
+        self.loop: tuple[float | None, float | None] = (None, None)   # A-B repeat
+        self.intro: tuple[float, float] | None = None               # the opening titles of a series
         self._hover_x = -1
         self._drag = False
 
@@ -88,6 +90,20 @@ class SeekBar(QWidget):
             g.setColorAt(1, QColor(style.ACCENT2))
             p.setBrush(g)
             p.drawRoundedRect(QRectF(x0, y, px - x0, th), th / 2, th / 2)
+            if self.intro:                         # opening titles: a faint amber band
+                xa = x0 + w * max(0.0, self.intro[0]) / self.duration
+                xb = x0 + w * min(self.duration, self.intro[1]) / self.duration
+                p.setBrush(QColor(245, 159, 0, 110))
+                p.drawRect(QRectF(xa, y, max(2.0, xb - xa), th))
+            a, b = self.loop
+            if a is not None:                      # A-B repeat: green band and two marks
+                xa = x0 + w * a / self.duration
+                xb = x0 + w * (b if b is not None else a) / self.duration
+                p.setBrush(QColor(32, 201, 151, 150))
+                p.drawRect(QRectF(xa, y - 2, max(2.0, xb - xa), th + 4))
+                p.setBrush(QColor(32, 201, 151))
+                for xm in ((xa, xb) if b is not None else (xa,)):
+                    p.drawRoundedRect(QRectF(xm - 1.5, y - 5, 3, th + 10), 1.5, 1.5)
             p.setBrush(QColor(0, 0, 0, 150))
             for c in self.chapters:
                 if 0 < c < self.duration:
@@ -162,6 +178,9 @@ class Toast(QLabel):
         self.hide()
 
     def show_text(self, text: str, ms: int = 1300):
+        par = self.parentWidget()
+        self.setWordWrap(True)
+        self.setMaximumWidth(max(160, (par.width() if par else 600) - 48))
         self.setText(text)
         self.adjustSize()
         self.move(24, 24 if not self.parent() else getattr(self.parent(), "toast_top", 24))

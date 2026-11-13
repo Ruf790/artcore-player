@@ -11,6 +11,9 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
 - sound: night mode, volume levelling, clear dialogue, 10-band equalizer with presets
 - the folder is the playlist: next episode starts by itself (Shift+PgUp / PgDn, P / N)
 - Blu-ray / DVD folders and .iso images, disc titles
+- picture: brightness / contrast / saturation / gamma, smooth motion (interpolation to the monitor's refresh rate)
+- mini player on top of other windows, A-B repeat, audio delay
+- series: mark the intro once per folder — a Skip button (or automatic skipping) in every episode
 - updates itself from GitHub Releases
 - continues where you stopped (per file), recent files on the start page
 - hardware decoding (D3D11VA / NVDEC / DXVA2), speed 0.25–3×, frame step, screenshots, always on top

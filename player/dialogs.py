@@ -115,7 +115,8 @@ KEYS = [
     ("Home", "k_home"), (". ,", "k_frame"), ("↑ ↓ / wheel", "k_vol"), ("M", "k_mute"),
     ("A", "k_audio"), ("S", "k_subs"), ("Z / X", "k_subdelay"), ("[ ]  Backspace", "k_speed"),
     ("PgUp / PgDn", "k_chapters"), ("Shift + PgUp / PgDn, P / N", "k_prevnext"), ("C", "k_chapter_list"),
-    ("E", "k_eq"), ("D", "k_dialog"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
+    ("E", "k_eq"), ("D", "k_dialog"), ("Ctrl + Z / X", "k_audiodelay"), ("B", "k_ab"), ("V", "k_picture"),
+    ("H", "k_smooth"), ("Ctrl + M", "k_mini"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
     ("Ctrl + S", "k_shot"), ("Ctrl + O", "k_open"), ("Ctrl + W", "k_close"), ("Ctrl + ,", "k_settings"),
 ]
 
@@ -298,3 +299,64 @@ class UpdateDialog(QDialog):
             return
         self.path = path
         self.accept()
+
+
+class PictureDialog(QDialog):
+    """Brightness / contrast / saturation / gamma, −100…100, heard… seen at once."""
+    changed = Signal()
+    KEYS = ("brightness", "contrast", "saturation", "gamma")
+    ICONS = ("fa6s.sun", "fa6s.circle-half-stroke", "fa6s.droplet", "fa6s.chart-line")
+
+    def __init__(self, cfg: dict, parent=None):
+        super().__init__(parent)
+        self.cfg = cfg
+        self.setWindowTitle(t("picture") + " — " + APP_TITLE)
+        self.setMinimumWidth(460)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 18, 22, 16)
+        lay.addWidget(_head(t("picture"), "fa6s.circle-half-stroke"))
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(10)
+        pic = cfg.setdefault("picture", {})
+        self.sliders = {}
+        for r, (k, ic) in enumerate(zip(self.KEYS, self.ICONS)):
+            icl = QLabel()
+            icl.setPixmap(style.icon(ic, style.MUTED).pixmap(16, 16))
+            name = QLabel(t("pic_" + k))
+            sl = QSlider(Qt.Horizontal)
+            sl.setRange(-100, 100)
+            sl.setValue(int(pic.get(k, 0)))
+            val = QLabel()
+            val.setFixedWidth(40)
+            val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            sl.valueChanged.connect(lambda v, k=k, val=val: self._moved(k, v, val))
+            self._moved(k, sl.value(), val, emit=False)
+            grid.addWidget(icl, r, 0)
+            grid.addWidget(name, r, 1)
+            grid.addWidget(sl, r, 2)
+            grid.addWidget(val, r, 3)
+            self.sliders[k] = sl
+        grid.setColumnStretch(2, 1)
+        lay.addLayout(grid)
+        row = QHBoxLayout()
+        for key, vals in (("pic_preset_dark", (8, 6, 0, 12)), ("pic_preset_vivid", (0, 6, 20, 0)),
+                          ("pic_preset_soft", (0, -6, -10, 0))):
+            b = QPushButton(t(key))
+            b.clicked.connect(lambda _=False, vals=vals: self._set(vals))
+            row.addWidget(b)
+        reset = QPushButton(t("reset"))
+        reset.clicked.connect(lambda: self._set((0, 0, 0, 0)))
+        row.addWidget(reset)
+        lay.addLayout(row)
+        lay.addWidget(_buttons(self))
+
+    def _set(self, vals):
+        for k, v in zip(self.KEYS, vals):
+            self.sliders[k].setValue(v)
+
+    def _moved(self, k: str, v: int, val: QLabel, emit: bool = True):
+        val.setText(f"{v:+d}" if v else "0")
+        self.cfg.setdefault("picture", {})[k] = v
+        if emit:
+            self.changed.emit()
