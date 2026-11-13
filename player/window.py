@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction, QActionGroup, QCursor, QKeySequence
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMenu, QMessageBox,
                                QSlider, QVBoxLayout, QWidget)
 
-from . import APP_TITLE, AUDIO_EXT, SUB_EXT, VIDEO_EXT, VERSION, config, style, winint
+from . import APP_TITLE, AUDIO_EXT, DISC_EXT, SUB_EXT, VIDEO_EXT, VERSION, config, style, winint
 from .i18n import lang_name, t
 from .video import VideoWidget
 from .widgets import (Bubble, GradientPanel, Pulse, PlaylistPanel, SeekBar, StartPage, Toast, ctl_button,
@@ -35,10 +35,42 @@ def media_in(folder: str) -> list[str]:
     return [os.path.join(folder, n) for n in sorted(names, key=natural_key)]
 
 
+def disc_of(path: str) -> tuple[str, str] | None:
+    """("bd" | "dvd", device) when the path is a disc: a Blu-ray / DVD folder (or its BDMV / VIDEO_TS
+    subfolder) or an .iso image. None for ordinary files and folders."""
+    if os.path.isdir(path):
+        base = os.path.basename(os.path.normpath(path)).upper()
+        if base in ("BDMV", "VIDEO_TS"):
+            return ("bd" if base == "BDMV" else "dvd"), os.path.dirname(os.path.normpath(path))
+        if os.path.isdir(os.path.join(path, "BDMV")) or os.path.isfile(os.path.join(path, "index.bdmv")):
+            return "bd", path
+        if os.path.isdir(os.path.join(path, "VIDEO_TS")) or os.path.isfile(os.path.join(path, "VIDEO_TS.IFO")):
+            return "dvd", path
+        return None
+    if path.lower().endswith(DISC_EXT) and os.path.isfile(path):
+        return iso_kind(path), path
+    return None
+
+
+def iso_kind(path: str) -> str:
+    """Blu-ray or DVD image: look for the BDMV / VIDEO_TS names in the file system area of the image."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(48 << 20)
+        if b"VIDEO_TS" in head and b"BDMV" not in head:
+            return "dvd"
+        if b"BDMV" in head:
+            return "bd"
+        return "bd" if os.path.getsize(path) > 9_000_000_000 else "dvd"
+    except OSError:
+        return "bd"
+
+
 class Bridge(QObject):
     """mpv calls back from its own thread; everything is handed to the GUI thread through signals."""
     prop = Signal(str, object)
     loaded = Signal()
+    failed = Signal(int)                 # end-file with an error (mpv error code)
 
 
 class Stage(QWidget):
@@ -80,6 +112,9 @@ class PlayerWindow(QMainWindow):
         self.bridge = Bridge()
         self.bridge.prop.connect(self._on_prop)
         self.bridge.loaded.connect(self._on_loaded)
+        self.bridge.failed.connect(self._on_failed)
+        self.disc: tuple[str, str] | None = None
+        self.disc_title: int | None = None      # None = the longest title (the film)
         self.mpv = self._make_mpv()
 
         # ── stage: video + overlays
@@ -143,6 +178,15 @@ class PlayerWindow(QMainWindow):
         for name in OBSERVED:
             m.observe_property(name, lambda n, v: self.bridge.prop.emit(n, v))
         m.event_callback("file-loaded")(lambda _e: self.bridge.loaded.emit())
+
+        def end_file(ev):
+            try:
+                d = ev.data
+                if d.reason == self.mpvmod.MpvEventEndFile.ERROR:
+                    self.bridge.failed.emit(int(d.error))
+            except Exception:
+                pass
+        m.event_callback("end-file")(end_file)
         return m
 
     def _get(self, name, default=None):
@@ -311,13 +355,18 @@ class PlayerWindow(QMainWindow):
     def open_dialog(self):
         exts = " ".join("*" + e for e in MEDIA_EXT)
         files, _ = QFileDialog.getOpenFileNames(self, t("open_file"), self.cfg.get("last_dir") or "",
-                                                f"{t('media_files')} ({exts});;{t('all_files')} (*)")
+                                                f"{t('media_files')} ({exts});;{t('disc_images')} (*.iso);;"
+                                                f"{t('all_files')} (*)")
         if files:
             self.open_paths(files)
 
     def open_folder_dialog(self):
         d = QFileDialog.getExistingDirectory(self, t("open_folder"), self.cfg.get("last_dir") or "")
         if d:
+            if disc_of(d):
+                self.cfg["last_dir"] = os.path.dirname(os.path.normpath(d))
+                self._start_playlist([d], 0)
+                return
             items = media_in(d)
             if items:
                 self.cfg["last_dir"] = d
@@ -334,6 +383,10 @@ class PlayerWindow(QMainWindow):
             for s in subs:
                 self.mpv.command("sub-add", s, "select")
             self.toast.show_text(t("sub_loaded", os.path.basename(subs[0])))
+            return
+        discs = [p for p in media if os.path.isdir(p) and disc_of(p)]
+        if discs:                                   # a Blu-ray / DVD folder: play the disc, not its files
+            self._start_playlist([os.path.abspath(p) for p in discs], 0)
             return
         folders = [p for p in media if os.path.isdir(p)]
         if folders and len(media) == 1:
@@ -385,7 +438,23 @@ class PlayerWindow(QMainWindow):
         self.setWindowTitle(f"{os.path.basename(self.path)} — {APP_TITLE}")
         self._clear_badges()
         self.mpv.pause = False
-        self.mpv.play(self.path)
+        self.disc = disc_of(self.path)
+        if self.disc:
+            kind, dev = self.disc
+            name = os.path.basename(os.path.normpath(dev))
+            self.title_lbl.setText(f"{'Blu-ray' if kind == 'bd' else 'DVD'} · {name}")
+            self.setWindowTitle(f"{name} — {APP_TITLE}")
+            try:
+                if kind == "bd":
+                    self.mpv.bluray_device = dev
+                else:
+                    self.mpv.dvd_device = dev
+            except Exception:
+                pass
+            self.disc_title = None
+            self.mpv.play(f"{kind}://longest")
+        else:
+            self.mpv.play(self.path)
         self.plpanel.set_items(self.playlist, self.index)
         self.b_prev.setEnabled(idx > 0)
         self.b_next.setEnabled(idx < len(self.playlist) - 1)
@@ -414,6 +483,8 @@ class PlayerWindow(QMainWindow):
     def _save_position(self):
         if not self.path or not self.cfg.get("resume", True):
             return
+        if self.disc and self.disc_title is not None:
+            return                                 # extras of a disc: only the film keeps its place
         pos, dur = self._get("time-pos"), self._get("duration")
         if pos is None or not dur:
             return
@@ -428,6 +499,18 @@ class PlayerWindow(QMainWindow):
             self._resume_note = fmt_time(pos)
             self.toast.show_text(t("resumed", fmt_time(pos)), 3500)
         self._update_badges()
+
+    def _on_failed(self, code: int):
+        if not self.path:
+            return
+        name = os.path.basename(os.path.normpath(self.path))
+        if self.disc and self.disc_title is not None:
+            self.toast.show_text(t("title_none", self.disc_title + 1), 3000)
+        elif self.disc:
+            self.toast.show_text(t("disc_fail", name), 6000)
+        else:
+            self.toast.show_text(t("open_fail", name), 5000)
+        self.poke()
 
     # ── mpv → UI ──────────────────────────────────────────────
     def _on_prop(self, name: str, val):
@@ -759,7 +842,36 @@ class PlayerWindow(QMainWindow):
             a.triggered.connect(lambda _=False, s=s: self.set_speed(s))
             grp.addAction(a)
 
+    def play_disc_title(self, n: int | None):
+        """mpv has no title list for discs any more: a title is chosen by loading bd://N / dvd://N again."""
+        if not self.disc:
+            return
+        if n is not None and n < 0:
+            return
+        self._save_position()
+        self.disc_title = n
+        kind = self.disc[0]
+        self.mpv.play(f"{kind}://{'longest' if n is None else n}")
+        self.toast.show_text(t("main_film_on") if n is None else t("title_n", n + 1), 1800)
+
+    def _fill_titles_menu(self, m: QMenu):
+        cur = self.disc_title
+        a = m.addAction(t("main_film"))
+        a.setCheckable(True)
+        a.setChecked(cur is None)
+        a.triggered.connect(lambda: self.play_disc_title(None))
+        m.addSeparator()
+        if cur is not None:
+            m.addAction(t("title_now", cur + 1)).setEnabled(False)
+        nxt = 0 if cur is None else cur + 1
+        m.addAction(style.icon("fa6s.forward-step"), t("title_next", nxt + 1), lambda: self.play_disc_title(nxt))
+        if cur:
+            m.addAction(style.icon("fa6s.backward-step"), t("title_prev", cur), lambda: self.play_disc_title(cur - 1))
+
     def _fill_more_menu(self, m: QMenu):
+        if self.disc:
+            self._fill_titles_menu(m.addMenu(style.icon("fa6s.compact-disc"), t("disc_titles")))
+            m.addSeparator()
         asp = m.addMenu(style.icon("fa6s.crop"), t("aspect"))
         cur = str(self._get("video-aspect-override", "-1"))
         for val, txt in (("-1", t("aspect_auto")), ("16:9", "16:9"), ("4:3", "4:3"), ("2.35:1", "2.35:1"),

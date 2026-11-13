@@ -3,7 +3,7 @@
 ; Expects the PyInstaller output in dist\ArtCorePlayer\.
 
 #define AppName      "ArtCore Player"
-#define AppVersion   "1.0.0"
+#define AppVersion   "1.0.1"
 #define AppPublisher "ArtCore"
 #define AppURL       "https://github.com/Ruf790/artcore-player"
 #define AppExe       "ArtCorePlayer.exe"
@@ -81,6 +81,26 @@ Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities"; ValueType: st
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Video player (mpv)"; Tasks: openwith
 Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#AppName}"; ValueData: "Software\ArtCore\ArtCore Player\Capabilities"; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.m4v\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.avi\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.wmv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.ts\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.m2ts\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mts\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mpg\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mpeg\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.vob\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.flv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.3gp\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.rmvb\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.divx\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.asf\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.f4v\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mkv"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mkv"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
@@ -125,21 +145,117 @@ Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociation
 Root: HKA; Subkey: "Software\Classes\.3gp\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".3gp"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".3gp"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.3g2\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".3g2"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".3g2"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.ogv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".ogv"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogv"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.ogm\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".ogm"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ogm"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.rm\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".rm"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".rm"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.rmvb\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".rmvb"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".rmvb"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.divx\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".divx"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".divx"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.xvid\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".xvid"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".xvid"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.asf\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".asf"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".asf"; ValueData: "{#ProgId}"; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\.f4v\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".f4v"; ValueData: ""; Tasks: openwith
 Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".f4v"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.hevc\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".hevc"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".hevc"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.h264\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".h264"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".h264"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.h265\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".h265"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".h265"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.264\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".264"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".264"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.265\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".265"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".265"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.avc\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".avc"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".avc"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.ivf\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".ivf"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".ivf"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.obu\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".obu"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".obu"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.y4m\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".y4m"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".y4m"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.m2v\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".m2v"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".m2v"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.m1v\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".m1v"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".m1v"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mpe\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mpe"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mpe"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mpv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mpv"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mpv"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mxf\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mxf"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mxf"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mk3d\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mk3d"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mk3d"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.qt\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".qt"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".qt"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.dv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".dv"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".dv"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.nut\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".nut"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".nut"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.amv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".amv"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".amv"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.wtv\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".wtv"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".wtv"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.dvr-ms\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".dvr-ms"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".dvr-ms"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.mod\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".mod"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".mod"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.tod\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".tod"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".tod"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.evo\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".evo"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".evo"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.trp\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".trp"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".trp"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.tp\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".tp"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".tp"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.bik\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".bik"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".bik"; ValueData: "{#ProgId}"; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\.iso\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: openwith
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".iso"; ValueData: ""; Tasks: openwith
+Root: HKA; Subkey: "Software\ArtCore\ArtCore Player\Capabilities\FileAssociations"; ValueType: string; ValueName: ".iso"; ValueData: "{#ProgId}"; Tasks: openwith
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
