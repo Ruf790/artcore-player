@@ -7,7 +7,11 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
 - all audio tracks and subtitles (embedded and external, auto-loaded by name), subtitle delay and size
 - controls float over the picture and hide while you watch; subtitles move up while the controls are shown
 - badges with the format: 4K · HDR10 · HEVC · 5.1 · TrueHD
-- the folder is the playlist: next episode starts by itself, PgUp / PgDn
+- frame previews over the seek bar (HDR tone-mapped), chapters: names, list, PgUp / PgDn
+- sound: night mode, volume levelling, clear dialogue, 10-band equalizer with presets
+- the folder is the playlist: next episode starts by itself (Shift+PgUp / PgDn, P / N)
+- Blu-ray / DVD folders and .iso images, disc titles
+- updates itself from GitHub Releases
 - continues where you stopped (per file), recent files on the start page
 - hardware decoding (D3D11VA / NVDEC / DXVA2), speed 0.25–3×, frame step, screenshots, always on top
 - single window: files opened from Explorer go to the running player

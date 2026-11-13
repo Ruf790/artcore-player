@@ -19,7 +19,15 @@ DEFAULTS = {
     "alang":         "rus,ru,russian,eng,en",   # preferred audio languages
     "slang":         "",                         # preferred subtitle languages, "" = only forced/default
     "screenshot_dir": "",
-    "remaining_time": False,        # time label shows -remaining instead of the duration
+    "remaining_time": False,
+    "thumbs":        True,          # frame previews over the seek bar
+    "audio_mode":    "off",         # off | night | level | dialog
+    "eq":            [0] * 10,      # equalizer, dB per band (audio.BANDS)
+    "eq_preset":     "flat",
+    "check_updates": True,
+    "last_update_check": 0,
+    "update_notified": "",
+    "reopen":        "",            # the file that was open when the player updated itself        # time label shows -remaining instead of the duration
     "geometry":      "",
     "last_dir":      "",
     "recent":        [],            # most recent first

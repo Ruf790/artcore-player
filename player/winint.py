@@ -24,6 +24,18 @@ def init_process(app_id: str) -> None:
         pass
 
 
+def release_mutex() -> None:
+    """Let the installer run (it waits for AppMutex) — before a self-update."""
+    global _mutex
+    if IS_WIN and _mutex:
+        import ctypes
+        try:
+            ctypes.windll.kernel32.CloseHandle(_mutex)
+        except Exception:
+            pass
+        _mutex = None
+
+
 def dark_title_bar(win_id: int, dark: bool = True) -> None:
     """DWMWA_USE_IMMERSIVE_DARK_MODE (20; 19 on early Windows 10 builds)."""
     if not IS_WIN:

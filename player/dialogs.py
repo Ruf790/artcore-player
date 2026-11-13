@@ -1,11 +1,12 @@
 """Settings and keyboard shortcuts."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout)
+                               QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QSlider,
+                               QTextBrowser, QVBoxLayout)
 
-from . import APP_TITLE, VERSION, config, style, winint
+from . import APP_TITLE, VERSION, audio, config, style, winint
 from .i18n import t
 
 
@@ -49,7 +50,8 @@ class SettingsDialog(QDialog):
         self.autonext = QCheckBox(t("set_autonext")); self.autonext.setChecked(cfg.get("autoplay_next", True))
         self.single = QCheckBox(t("set_single")); self.single.setChecked(cfg.get("single_window", True))
         self.hwdec = QCheckBox(t("set_hwdec")); self.hwdec.setChecked(cfg.get("hwdec", True))
-        for cb in (self.resume, self.autonext, self.single, self.hwdec):
+        self.thumbs = QCheckBox(t("set_thumbs")); self.thumbs.setChecked(cfg.get("thumbs", True))
+        for cb in (self.resume, self.autonext, self.single, self.thumbs, self.hwdec):
             form.addRow(cb)
         hint = QLabel(t("set_hwdec_hint")); hint.setWordWrap(True)
         hint.setStyleSheet(f"color: {style.MUTED}; font-size: 9pt;")
@@ -67,6 +69,14 @@ class SettingsDialog(QDialog):
         b.clicked.connect(self._pick)
         row.addWidget(self.shots); row.addWidget(b)
         form.addRow(t("set_shots"), row)
+        urow = QHBoxLayout()
+        self.upd = QCheckBox(t("set_updates")); self.upd.setChecked(cfg.get("check_updates", True))
+        urow.addWidget(self.upd)
+        urow.addStretch()
+        ub = QPushButton(style.icon("fa6s.rotate"), "  " + t("upd_check_now"))
+        ub.clicked.connect(lambda: parent.check_updates(manual=True) if hasattr(parent, "check_updates") else None)
+        urow.addWidget(ub)
+        form.addRow(urow)
         clear = QPushButton(style.icon("fa6s.eraser"), "  " + t("set_clear_hist"))
         clear.clicked.connect(self._clear)
         form.addRow(clear)
@@ -93,6 +103,7 @@ class SettingsDialog(QDialog):
         self.lang_changed = lang != c.get("language")
         c.update(language=lang, resume=self.resume.isChecked(), autoplay_next=self.autonext.isChecked(),
                  single_window=self.single.isChecked(), hwdec=self.hwdec.isChecked(),
+                 thumbs=self.thumbs.isChecked(), check_updates=self.upd.isChecked(),
                  alang=self.alang.text().strip(), slang=self.slang.text().strip(),
                  screenshot_dir=self.shots.text().strip())
         super().accept()
@@ -103,7 +114,8 @@ KEYS = [
     ("← →", "k_seek5"), ("Ctrl + ← →", "k_seek10"), ("Shift + ← →", "k_seek60"), ("0 … 9", "k_percent"),
     ("Home", "k_home"), (". ,", "k_frame"), ("↑ ↓ / wheel", "k_vol"), ("M", "k_mute"),
     ("A", "k_audio"), ("S", "k_subs"), ("Z / X", "k_subdelay"), ("[ ]  Backspace", "k_speed"),
-    ("PgUp / PgDn, P / N", "k_prevnext"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
+    ("PgUp / PgDn", "k_chapters"), ("Shift + PgUp / PgDn, P / N", "k_prevnext"), ("C", "k_chapter_list"),
+    ("E", "k_eq"), ("D", "k_dialog"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
     ("Ctrl + S", "k_shot"), ("Ctrl + O", "k_open"), ("Ctrl + W", "k_close"), ("Ctrl + ,", "k_settings"),
 ]
 
@@ -130,3 +142,159 @@ class KeysDialog(QDialog):
             grid.addWidget(d, r, col + 1)
         lay.addLayout(grid)
         lay.addWidget(_buttons(self, ok=False))
+
+
+class EqualizerDialog(QDialog):
+    """10 bands ±12 dB with presets; every move is heard at once (changed → apply_audio)."""
+    changed = Signal()
+
+    def __init__(self, cfg: dict, parent=None):
+        super().__init__(parent)
+        self.cfg = cfg
+        self.setWindowTitle(t("equalizer") + " — " + APP_TITLE)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 18, 22, 16)
+        lay.addWidget(_head(t("equalizer"), "fa6s.sliders"))
+        top = QHBoxLayout()
+        top.addWidget(QLabel(t("eq_preset")))
+        self.preset = QComboBox()
+        for key in audio.PRESETS:
+            self.preset.addItem(t("eqp_" + key), key)
+        self.preset.addItem(t("eqp_custom"), "custom")
+        top.addWidget(self.preset, 1)
+        reset = QPushButton(t("reset"))
+        reset.clicked.connect(lambda: self._load(audio.PRESETS["flat"], "flat"))
+        top.addWidget(reset)
+        lay.addLayout(top)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        self.sliders: list[QSlider] = []
+        self.vals: list[QLabel] = []
+        for i, f in enumerate(audio.BANDS):
+            v = QLabel("0")
+            v.setAlignment(Qt.AlignCenter)
+            v.setStyleSheet(f"color: {style.MUTED}; font-size: 8.5pt;")
+            sl = QSlider(Qt.Vertical)
+            sl.setRange(-12, 12)
+            sl.setFixedHeight(170)
+            sl.setTickPosition(QSlider.TicksBothSides)
+            sl.setTickInterval(6)
+            sl.valueChanged.connect(lambda _v, i=i: self._moved(i))
+            lab = QLabel(f"{f // 1000}k" if f >= 1000 else str(f))
+            lab.setAlignment(Qt.AlignCenter)
+            grid.addWidget(v, 0, i, Qt.AlignHCenter)
+            grid.addWidget(sl, 1, i, Qt.AlignHCenter)
+            grid.addWidget(lab, 2, i, Qt.AlignHCenter)
+            self.sliders.append(sl)
+            self.vals.append(v)
+        lay.addLayout(grid)
+        hint = QLabel(t("eq_hint"))
+        hint.setStyleSheet(f"color: {style.MUTED}; font-size: 9pt;")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        lay.addWidget(_buttons(self))
+        self._loading = False
+        gains = [int(g) for g in cfg.get("eq", [0] * 10)]
+        self._load(gains, next((k for k, v in audio.PRESETS.items() if list(v) == gains), "custom"))
+        self.preset.currentIndexChanged.connect(self._pick)
+
+    def _load(self, gains, preset: str):
+        self._loading = True
+        for sl, g in zip(self.sliders, gains):
+            sl.setValue(int(g))
+        self.preset.setCurrentIndex(max(0, self.preset.findData(preset)))
+        self._loading = False
+        self._store("custom" if preset == "custom" else preset)
+
+    def _pick(self, _i):
+        key = self.preset.currentData()
+        if key in audio.PRESETS and not self._loading:
+            self._load(audio.PRESETS[key], key)
+
+    def _moved(self, i: int):
+        self.vals[i].setText(f"{self.sliders[i].value():+d}" if self.sliders[i].value() else "0")
+        if self._loading:
+            return
+        gains = [sl.value() for sl in self.sliders]
+        match = next((k for k, v in audio.PRESETS.items() if list(v) == gains), "custom")
+        self._loading = True
+        self.preset.setCurrentIndex(self.preset.findData(match))
+        self._loading = False
+        self._store(match)
+
+    def _store(self, preset: str):
+        for i, sl in enumerate(self.sliders):
+            self.vals[i].setText(f"{sl.value():+d}" if sl.value() else "0")
+        self.cfg["eq"] = [sl.value() for sl in self.sliders]
+        self.cfg["eq_preset"] = preset
+        self.changed.emit()
+
+
+class UpdateDialog(QDialog):
+    """Release notes + download and silent install of the new Setup.exe."""
+    progress = Signal(int, int)
+    done = Signal(str, str)               # path, error
+
+    def __init__(self, info: dict, parent=None):
+        super().__init__(parent)
+        from . import updater
+        self.info, self.updater, self.path = info, updater, ""
+        self.setWindowTitle(t("upd_title"))
+        self.resize(600, 440)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 18, 22, 16)
+        lay.addWidget(_head(t("upd_available", info["version"]), "fa6s.circle-arrow-up"))
+        sub = QLabel(t("upd_text", info["version"], VERSION))
+        sub.setStyleSheet(f"color: {style.MUTED};")
+        lay.addWidget(sub)
+        notes = QTextBrowser()
+        notes.setOpenExternalLinks(True)
+        notes.setMarkdown(info.get("notes") or "")
+        notes.setStyleSheet(f"background: {style.PANEL}; border: 1px solid {style.BORDER}; border-radius: 8px; padding: 6px;")
+        lay.addWidget(notes, 1)
+        self.bar = QProgressBar()
+        self.bar.hide()
+        lay.addWidget(self.bar)
+        note = QLabel(t("upd_restart"))
+        note.setStyleSheet(f"color: {style.MUTED}; font-size: 9pt;")
+        note.setWordWrap(True)
+        lay.addWidget(note)
+        bb = QDialogButtonBox()
+        self.go = bb.addButton(t("upd_install"), QDialogButtonBox.AcceptRole)
+        self.go.setObjectName("primary")
+        bb.addButton(t("upd_later"), QDialogButtonBox.RejectRole)
+        bb.accepted.connect(self._go)
+        bb.rejected.connect(self.reject)
+        lay.addWidget(bb)
+        self.progress.connect(self._on_progress)
+        self.done.connect(self._on_done)
+
+    def _go(self):
+        import threading
+        self.go.setEnabled(False)
+        self.bar.setRange(0, max(1, self.info.get("size", 0)))
+        self.bar.show()
+
+        def work():
+            try:
+                p = self.updater.download(self.info["url"], self.info.get("size", 0),
+                                          lambda d, n: self.progress.emit(d, n))
+                self.done.emit(p, "")
+            except Exception as e:
+                self.done.emit("", str(e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_progress(self, d: int, n: int):
+        if n:
+            self.bar.setMaximum(n)
+        self.bar.setValue(min(d, self.bar.maximum()))
+        self.bar.setFormat(t("upd_downloading", f"{d / 1048576:.1f}", f"{(n or d) / 1048576:.1f}"))
+
+    def _on_done(self, path: str, err: str):
+        from PySide6.QtWidgets import QMessageBox
+        if err:
+            self.go.setEnabled(True)
+            QMessageBox.warning(self, t("upd_title"), t("upd_error", err))
+            return
+        self.path = path
+        self.accept()
