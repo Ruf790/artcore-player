@@ -34,6 +34,7 @@ STRINGS = {
     "subs":           ("Субтитры", "Subtitles"),
     "more":           ("Ещё", "More"),
     "fullscreen":     ("Во весь экран", "Fullscreen"),
+    "fullscreen_exit": ("Выйти из полноэкранного режима", "Exit fullscreen"),
     "off":            ("Выкл.", "Off"),
     "on":             ("Вкл.", "On"),
     "forced":         ("принуд.", "forced"),

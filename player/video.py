@@ -61,8 +61,10 @@ class VideoWidget(QOpenGLWidget):
             f.glClearColor(0, 0, 0, 1)
             f.glClear(0x4000)          # GL_COLOR_BUFFER_BIT
             return
+        # the size of the widget's real framebuffer: Qt rounds (size × scale), int() cut it a pixel short at
+        # 125 % / 175 % — mpv then drew the picture a pixel smaller than the screen, with a black line along an edge
         r = self.devicePixelRatioF()
-        self.ctx.render(flip_y=True, opengl_fbo={"w": int(self.width() * r), "h": int(self.height() * r),
+        self.ctx.render(flip_y=True, opengl_fbo={"w": int(self.width() * r + 0.5), "h": int(self.height() * r + 0.5),
                                                  "fbo": self.defaultFramebufferObject()})
 
     def _swapped(self):

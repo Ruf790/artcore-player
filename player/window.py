@@ -264,6 +264,9 @@ class PlayerWindow(QMainWindow):
         self.badges = QHBoxLayout()
         self.badges.setSpacing(6)
         lay.addLayout(self.badges)
+        # full screen beside the badges too (the window's own «maximize» is not full screen)
+        self.top_full = ctl_button("fa6s.expand", t("fullscreen") + " (F)", 16, self.toggle_fullscreen)
+        lay.addWidget(self.top_full)
         self.top_close = ctl_button("fa6s.xmark", t("close_file"), 16, self.close_file)
         lay.addWidget(self.top_close)
 
@@ -973,12 +976,20 @@ class PlayerWindow(QMainWindow):
             return
         if self.isFullScreen():
             self.showMaximized() if self._was_maximized else self.showNormal()
-            self.b_full.setIcon(style.icon("fa6s.expand", "#ffffff"))
         else:
             self._was_maximized = self.isMaximized()
             self.showFullScreen()
-            self.b_full.setIcon(style.icon("fa6s.compress", "#ffffff"))
+        self._full_icons()
         self.poke()
+
+    def _full_icons(self):
+        """Both full-screen buttons (bottom bar, top right) show what a click does."""
+        full = self.isFullScreen()
+        for b in (self.b_full, getattr(self, "top_full", None)):
+            if b is None or (b is self.b_full and self.mini):
+                continue
+            b.setIcon(style.icon("fa6s.compress" if full else "fa6s.expand", "#ffffff"))
+            b.setToolTip((t("fullscreen_exit") + " (F / Esc)") if full else (t("fullscreen") + " (F)"))
 
     def toggle_playlist(self, on: bool | None = None):
         on = not self.plpanel.isVisible() if on is None else on
