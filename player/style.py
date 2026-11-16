@@ -15,21 +15,28 @@ TEXT = "#e9ecef"
 MUTED = "#9aa3b2"
 
 
-def _check_png() -> str:
-    """White check mark for checked boxes (QSS needs a file)."""
+def _icon_png(name: str, glyph: str, color: str, size: int) -> str:
+    """Small icon saved to a file (QSS needs a file)."""
     import os
     import tempfile
-    path = os.path.join(tempfile.gettempdir(), "artcore_player_check.png")
+    path = os.path.join(tempfile.gettempdir(), "artcore_player_%s.png" % name)
     if not os.path.isfile(path):
         try:
-            icon("fa6s.check", "#ffffff").pixmap(12, 12).save(path)
+            icon(glyph, color).pixmap(size, size).save(path)
         except Exception:
             return ""
     return path.replace("\\", "/")
 
 
+def _check_png() -> str:
+    """White check mark for checked boxes."""
+    return _icon_png("check", "fa6s.check", "#ffffff", 12)
+
+
 def stylesheet() -> str:
-    return QSS.replace("%CHECK%", _check_png())
+    return (QSS.replace("%CHECK%", _check_png())
+               .replace("%UP%", _icon_png("up", "fa6s.chevron-up", TEXT, 8))
+               .replace("%DOWN%", _icon_png("down", "fa6s.chevron-down", TEXT, 8)))
 
 
 def icon(name: str, color: str = TEXT):
@@ -137,6 +144,18 @@ QCheckBox::indicator:hover {{ border-color: {ACCENT}; }}
 QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; image: url(%CHECK%); }}
 QLineEdit, QComboBox {{ background: {PANEL2}; border: 1px solid {BORDER}; border-radius: 8px; padding: 6px 9px; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {ACCENT}; }}
+QSpinBox {{ background: {PANEL2}; color: {TEXT}; border: 1px solid {BORDER}; border-radius: 8px;
+            padding: 6px 24px 6px 9px; min-width: 34px; selection-background-color: {ACCENT}; selection-color: #ffffff; }}
+QSpinBox:focus {{ border-color: {ACCENT}; }}
+QSpinBox:disabled {{ color: {MUTED}; }}
+QSpinBox::up-button, QSpinBox::down-button {{ subcontrol-origin: border; width: 20px; border: none;
+            border-left: 1px solid {BORDER}; background: {PANEL}; }}
+QSpinBox::up-button {{ subcontrol-position: top right; border-top-right-radius: 8px; }}
+QSpinBox::down-button {{ subcontrol-position: bottom right; border-bottom-right-radius: 8px; }}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background: {ACCENT}; }}
+QSpinBox::up-arrow {{ image: url(%UP%); width: 8px; height: 8px; }}
+QSpinBox::down-arrow {{ image: url(%DOWN%); width: 8px; height: 8px; }}
+QSpinBox::up-arrow:disabled, QSpinBox::up-arrow:off, QSpinBox::down-arrow:disabled, QSpinBox::down-arrow:off {{ image: none; }}
 QComboBox QAbstractItemView {{ background: {PANEL}; border: 1px solid {BORDER}; selection-background-color: {ACCENT}; }}
 QTabWidget::pane {{ border: 1px solid {BORDER}; border-radius: 10px; background: {PANEL}; top: -1px; }}
 QTabBar::tab {{ background: transparent; color: {MUTED}; padding: 8px 12px; margin-right: 2px;

@@ -5,6 +5,8 @@ from __future__ import annotations
 import threading
 
 from PySide6.QtCore import QObject, Signal
+
+from . import grab
 from PySide6.QtGui import QImage
 
 WIDTH = 256
@@ -83,7 +85,7 @@ class Thumbnailer(QObject):
                 if not restart.wait(4):
                     continue
                 try:
-                    pil = m.screenshot_raw("video").convert("RGB")
+                    pil = grab.frame(m, "video")
                 except Exception:
                     continue
                 data = pil.tobytes()
