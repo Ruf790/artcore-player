@@ -16,7 +16,7 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
 - series: mark the intro once per folder — a Skip button (or automatic skipping) in every episode
 - updates itself from GitHub Releases
 - continues where you stopped (per file), recent files on the start page
-- hardware decoding (D3D11VA / NVDEC / DXVA2), speed 0.25–3×, frame step, screenshots, always on top
+- hardware decoding (D3D11VA / NVDEC / DXVA2), speed 0.25–3×, frame step, screenshots and a sheet of frames from the whole video (Ctrl+Shift+S), always on top
 - single window: files opened from Explorer go to the running player
 - settings in tabs: playback, video (scaling quality, deinterlacing, debanding, HDR tone mapping), sound (output
   device, channels 2.0 / 5.1 / 7.1 downmix, WASAPI exclusive, max volume), subtitles (.srt encoding such as
@@ -37,7 +37,7 @@ Video player for Windows on the **mpv** engine (libmpv) with a modern Qt interfa
 
 Space — pause · F / double-click — fullscreen · ← → step from Settings, 5 s by default (Ctrl 10 s, Shift 1 min) · ↑ ↓ / wheel — volume ·
 A — audio track · S — subtitles · Z / X — subtitle delay · [ ] — speed · PgUp / PgDn — previous / next ·
-L — playlist · I — file info · R — repeat · Ctrl+R — rotate · Ctrl+U — open URL · U — stereo → 5.1 · Ctrl+S — screenshot · F1 — all keys
+L — playlist · I — file info · R — repeat · Ctrl+R — rotate · Ctrl+U — open URL · U — stereo → 5.1 · Ctrl+S — screenshot · Ctrl+Shift+S — sheet of frames · F1 — all keys
 
 ## Build
 

@@ -46,6 +46,7 @@ DEFAULTS = {
     "tone_mapping":  "auto",        # auto | bt.2446a | spline | hable | mobius
     "screenshot_format": "png",     # png | jpg | webp
     "screenshot_subs": True,
+    "sheet":         {"cols": 4, "rows": 5, "width": 1920, "format": "jpg", "stamp": True, "header": True},
     "audio_device":  "auto",
     "audio_channels": "auto-safe",  # auto-safe | stereo | 5.1 | 7.1
     "audio_exclusive": False,
