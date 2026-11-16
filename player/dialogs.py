@@ -401,6 +401,7 @@ class AboutDialog(QDialog):
             upd.setIcon(style.icon("fa6s.rotate"))
             upd.clicked.connect(lambda: win.check_updates(manual=True))
         close = bb.addButton(QDialogButtonBox.Close)
+        close.setText(t("close"))
         from PySide6.QtGui import QIcon
         close.setIcon(QIcon())
         close.setObjectName("primary")
@@ -782,6 +783,8 @@ class SheetDialog(QDialog):
         self.rows = QSpinBox()
         self.rows.setRange(1, 20)
         self.rows.setValue(int(c.get("rows", 5)))
+        for sb in (self.cols, self.rows):
+            sb.setFixedWidth(80)
         row.addWidget(self.cols)
         row.addWidget(QLabel("×"))
         row.addWidget(self.rows)
@@ -812,6 +815,7 @@ class SheetDialog(QDialog):
         self.b_go = bb.addButton(t("sheet_make"), QDialogButtonBox.AcceptRole)
         self.b_stop = bb.addButton(t("sheet_stop"), QDialogButtonBox.ActionRole)
         self.b_close = bb.addButton(QDialogButtonBox.Close)
+        self.b_close.setText(t("close"))
         self.b_stop.hide()
         self.b_go.clicked.connect(lambda: self.start())
         self.b_stop.clicked.connect(lambda: self._stop())

@@ -9,6 +9,8 @@ import time
 
 from PySide6.QtCore import QObject, Signal
 
+from . import grab
+
 TONEMAP = ("lavfi=[scale=%d:-2,zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,"
            "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p]")
 PLAIN = "scale=w=%d:h=-2"
@@ -205,7 +207,7 @@ class SheetMaker(QObject):
                 if not restart.wait(10):
                     continue
                 try:
-                    frames.append((sec, m.screenshot_raw("video").convert("RGB")))
+                    frames.append((sec, grab.frame(m, "video")))
                 except Exception:
                     pass
                 if tick:
