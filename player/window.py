@@ -16,7 +16,7 @@ from .i18n import lang_name, t
 from .video import VideoWidget
 from . import audio
 from .widgets import (GradientPanel, Pulse, PlaylistPanel, SeekBar, SeekPreview, Toast, ctl_button,
-                      fmt_time)
+                      fmt_precise, fmt_time, parse_goto)
 
 MEDIA_EXT = VIDEO_EXT + AUDIO_EXT
 SPEEDS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0)
@@ -835,6 +835,86 @@ class PlayerWindow(QMainWindow):
         self.toast.show_text(f"{sign}{fmt_time(abs(sec))}   ·   {fmt_time(max(0.0, self.position + sec))}", 900)
         self.poke()
 
+    # ── frames: step, number, go to, copy the time ────────────
+    def fps(self) -> float:
+        for name in ("container-fps", "estimated-vf-fps"):
+            try:
+                v = float(self._get(name, 0) or 0)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                return v
+        return 0.0
+
+    def frame_info(self) -> dict:
+        """The frame on screen: number, exact time, I/P/B (when mpv knows it), fps."""
+        pos = self._get("time-pos", None)
+        try:
+            pos = float(pos) if pos is not None else None
+        except (TypeError, ValueError):
+            pos = None
+        n = self._get("estimated-frame-number", None)
+        fps = self.fps()
+        if n is None and pos is not None and fps:
+            n = int(pos * fps + 0.5)
+        ptype = ""
+        try:
+            info = self._get("video-frame-info", None) or {}
+            ptype = str(info.get("picture-type", "") or "") if isinstance(info, dict) else ""
+        except Exception:
+            ptype = ""
+        return {"n": None if n is None else int(n), "pos": pos, "type": ptype, "fps": fps}
+
+    def frame_text(self) -> str:
+        fi = self.frame_info()
+        bits = []
+        if fi["n"] is not None:
+            bits.append(t("frame_n", f"{fi['n']:,}".replace(",", "\u202f")))
+        bits.append(fmt_precise(fi["pos"]))
+        if fi["type"]:
+            bits.append(t("frame_type", fi["type"]))
+        if fi["fps"]:
+            bits.append(f"{fi['fps']:.3f}".rstrip("0").rstrip(".") + " fps")
+        return " · ".join(bits)
+
+    def frame_step(self, d: int):
+        """. / , — one frame forward / back (pauses), then the frame's number and exact time."""
+        if not self.path:
+            return
+        self.mpv.command("frame-step" if d > 0 else "frame-back-step")
+        QTimer.singleShot(120, lambda: self.toast.show_text(self.frame_text(), 4000) if self.path else None)
+
+    def goto_dialog(self):
+        """Ctrl+G: to a frame number or a time."""
+        if not self.path:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        fps = self.fps()
+        cur = self.frame_info()
+        text, ok = QInputDialog.getText(self, t("goto"), t("goto_q", self.frame_text()),
+                                        text=fmt_precise(cur["pos"]))
+        if not ok:
+            return
+        sec = parse_goto(text, fps)
+        if sec is None:
+            self.toast.show_text(t("goto_bad"), 2200)
+            return
+        if self.duration:
+            sec = min(sec, max(0.0, self.duration - 0.001))
+        # an exact seek shows the first frame that starts at or after the target: aim a quarter frame early
+        self.mpv.command("seek", max(0.0, sec - (0.25 / fps if fps else 0.0005)), "absolute+exact")
+        self.mpv.pause = True
+        QTimer.singleShot(250, lambda: self.toast.show_text(self.frame_text(), 4000) if self.path else None)
+
+    def copy_time(self):
+        """Ctrl+Shift+C: the exact time of the frame on screen → clipboard (a trim point for ArtCore Convert)."""
+        if not self.path:
+            return
+        fi = self.frame_info()
+        txt = fmt_precise(fi["pos"])
+        QApplication.clipboard().setText(txt)
+        self.toast.show_text(t("time_copied", txt), 2200)
+
     def seek_abs(self, sec: float):
         if self.path:
             self.mpv.command("seek", max(0.0, sec), "absolute+exact")
@@ -1521,6 +1601,8 @@ class PlayerWindow(QMainWindow):
         m.addSeparator()
         m.addAction(style.icon("fa6s.camera"), t("screenshot") + "\tCtrl+S", self.screenshot)
         m.addAction(style.icon("fa6s.table-cells"), t("sheet") + "…\tCtrl+Shift+S", lambda: self.sheet_dialog())
+        m.addAction(style.icon("fa6s.location-crosshairs"), t("goto") + "…\tCtrl+G", lambda: self.goto_dialog())
+        m.addAction(style.icon("fa6s.copy"), t("copy_time") + "\tCtrl+Shift+C", lambda: self.copy_time())
         m.addAction(style.icon("fa6s.circle-info"), t("stats") + "\tI", self.toggle_stats)
         if self.path and os.path.exists(self.path):
             m.addAction(style.icon("fa6s.folder-open"), t("show_in_folder"), lambda: winint.show_in_explorer(self.path))
@@ -2006,7 +2088,7 @@ class PlayerWindow(QMainWindow):
             self.play_next()
         elif k in (Qt.Key_PageUp, Qt.Key_P, Qt.Key_MediaPrevious):
             self.play_prev()
-        elif k == Qt.Key_C and self._chapters:
+        elif k == Qt.Key_C and self._chapters and not ctrl:
             self._chapters_popup(QCursor.pos())
         elif k == Qt.Key_E:
             self.equalizer_dialog()
@@ -2019,9 +2101,13 @@ class PlayerWindow(QMainWindow):
         elif k == Qt.Key_Backspace:
             self.set_speed(1.0)
         elif k == Qt.Key_Period and self.path:
-            self.mpv.command("frame-step")
-        elif k == Qt.Key_Comma and self.path:
-            self.mpv.command("frame-back-step")
+            self.frame_step(1)
+        elif k == Qt.Key_Comma and self.path and not ctrl:
+            self.frame_step(-1)
+        elif k == Qt.Key_G and ctrl:
+            self.goto_dialog()
+        elif k == Qt.Key_C and ctrl and shift:
+            self.copy_time()
         elif k == Qt.Key_Home:
             self.seek_abs(0)
             self.toast.show_text(t("from_start"))

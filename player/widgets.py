@@ -22,6 +22,38 @@ def fmt_time(sec: float | None, force_hours: bool = False) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h or force_hours else f"{m}:{s:02d}"
 
 
+def fmt_precise(sec: float | None) -> str:
+    """0:08:34.208 — to the millisecond (ArtCore Convert takes it as a trim point as it is)."""
+    if sec is None or sec != sec or sec < 0:
+        sec = 0.0
+    ms = int(round(sec * 1000))
+    h, rem = divmod(ms, 3600_000)
+    m, rem = divmod(rem, 60_000)
+    s, ms = divmod(rem, 1000)
+    return f"{h}:{m:02d}:{s:02d}.{ms:03d}"
+
+
+def parse_goto(text: str, fps: float) -> float | None:
+    """Ctrl+G: «12345» → frame 12345 (needs fps); «8:34.208», «1:02:03», «514.2» → that time. Seconds or None."""
+    s = (text or "").strip().replace(",", ".").replace(" ", "").replace("\u00a0", "")
+    if not s:
+        return None
+    if s.isdigit():
+        if not fps or fps <= 0:
+            return None
+        return int(s) / fps
+    try:
+        parts = [float(x) for x in s.split(":")]
+    except ValueError:
+        return None
+    if len(parts) > 3 or any(x < 0 for x in parts):
+        return None
+    out = 0.0
+    for x in parts:
+        out = out * 60 + x
+    return out
+
+
 def ctl_button(icon_name: str, tip: str, size: int = 20, slot=None) -> QToolButton:
     b = QToolButton()
     b.setObjectName("ctl")

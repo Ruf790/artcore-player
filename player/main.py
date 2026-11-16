@@ -66,6 +66,12 @@ def selftest() -> int:
         af = audio.build("dialog", [0] * 10, 2, "", True)
         win.mpv.af = af                                  # libmpv takes the upmix chain
         lines.append("upmix: " + af)
+        from .widgets import fmt_precise, parse_goto
+        if fmt_precise(514.208) != "0:08:34.208" or parse_goto("200", 23.976) != 200 / 23.976 \
+                or parse_goto("8:34.208", 0) != 514.208 or parse_goto("abc", 24) is not None:
+            raise RuntimeError("frame time helpers")
+        fi = win.frame_info()                            # nothing open: no crash, no number
+        lines.append(f"frames: {fmt_precise(514.208)} {fi['n']}")
         if winint.IS_WIN:
             win._setup_smtc()
             sm = win.smtc
