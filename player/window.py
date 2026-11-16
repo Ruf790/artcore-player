@@ -68,6 +68,24 @@ def iso_kind(path: str) -> str:
         return "bd"
 
 
+
+# Windows virtual-key codes of the punctuation keys (the same key in every layout)
+_VK_PUNCT = {0xBE: Qt.Key_Period, 0xBC: Qt.Key_Comma, 0xDB: Qt.Key_BracketLeft, 0xDD: Qt.Key_BracketRight,
+             0xBA: Qt.Key_Semicolon, 0xDE: Qt.Key_Apostrophe, 0xBF: Qt.Key_Slash, 0xC0: Qt.Key_QuoteLeft,
+             0xBD: Qt.Key_Minus, 0xBB: Qt.Key_Equal, 0xDC: Qt.Key_Backslash}
+
+
+def latin_key(e) -> int:
+    """The key as on the English layout. With the Russian layout on, Qt reports the letter typed
+    (B → И, . → Ю), so the letter shortcuts did nothing; the virtual-key code is the same in every layout."""
+    k = e.key()
+    if k <= 0x7F:
+        return k
+    vk = e.nativeVirtualKey()
+    if 0x41 <= vk <= 0x5A:                     # A … Z
+        return vk                              # Qt.Key_A … Qt.Key_Z have the same values
+    return _VK_PUNCT.get(vk, k)
+
 class Bridge(QObject):
     """mpv calls back from its own thread; everything is handed to the GUI thread through signals."""
     prop = Signal(str, object)
@@ -2016,7 +2034,7 @@ class PlayerWindow(QMainWindow):
 
     # ── keyboard ──────────────────────────────────────────────
     def keyPressEvent(self, e):
-        k, mod = e.key(), e.modifiers()
+        k, mod = latin_key(e), e.modifiers()
         ctrl, shift = bool(mod & Qt.ControlModifier), bool(mod & Qt.ShiftModifier)
         step = 60 if shift else 10 if ctrl else int(self.cfg.get("seek_step", 5))
         vstep = int(self.cfg.get("vol_step", 5))

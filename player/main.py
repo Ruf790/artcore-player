@@ -70,6 +70,13 @@ def selftest() -> int:
         if fmt_precise(514.208) != "0:08:34.208" or parse_goto("200", 23.976) != 200 / 23.976 \
                 or parse_goto("8:34.208", 0) != 514.208 or parse_goto("abc", 24) is not None:
             raise RuntimeError("frame time helpers")
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QKeyEvent
+        from .window import latin_key
+        ru_b = QKeyEvent(QEvent.KeyPress, 0x418, Qt.NoModifier, 0, 0x42, 0, "и")   # B on the Russian layout
+        ru_dot = QKeyEvent(QEvent.KeyPress, 0x42E, Qt.NoModifier, 0, 0xBE, 0, "ю")
+        if latin_key(ru_b) != Qt.Key_B or latin_key(ru_dot) != Qt.Key_Period:
+            raise RuntimeError("keys on the Russian layout")
         fi = win.frame_info()                            # nothing open: no crash, no number
         lines.append(f"frames: {fmt_precise(514.208)} {fi['n']}")
         if winint.IS_WIN:
