@@ -1,5 +1,7 @@
-"""Settings, About, keyboard shortcuts, equalizer, picture, update."""
+"""Settings, About, keyboard shortcuts, equalizer, picture, update, the sheet of frames."""
 from __future__ import annotations
+
+import os
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -466,7 +468,7 @@ KEYS = [
     ("PgUp / PgDn", "k_chapters"), ("Shift + PgUp / PgDn, P / N", "k_prevnext"), ("C", "k_chapter_list"),
     ("E", "k_eq"), ("D", "k_dialog"), ("U", "k_upmix"), ("Ctrl + Z / X", "k_audiodelay"), ("B", "k_ab"), ("V", "k_picture"),
     ("H", "k_smooth"), ("Ctrl + M", "k_mini"), ("L", "k_playlist"), ("T", "k_ontop"), ("I", "k_stats"),
-    ("R", "k_repeat"), ("Ctrl + R", "k_rotate"), ("Ctrl + S", "k_shot"), ("Ctrl + O", "k_open"),
+    ("R", "k_repeat"), ("Ctrl + R", "k_rotate"), ("Ctrl + S", "k_shot"), ("Ctrl + Shift + S", "k_sheet"), ("Ctrl + O", "k_open"),
     ("Ctrl + U", "k_url"), ("Ctrl + W", "k_close"), ("Ctrl + ,", "k_settings"),
 ]
 
@@ -755,3 +757,118 @@ class PictureDialog(QDialog):
         self.cfg.setdefault("picture", {})[k] = v
         if emit:
             self.changed.emit()
+
+
+class SheetDialog(QDialog):
+    """A sheet of frames from the whole video: columns × rows, width, format, times on the frames, the header."""
+
+    def __init__(self, win, path: str, hdr: bool):
+        super().__init__(win)
+        import os
+        from PySide6.QtWidgets import QSpinBox
+        from .sheet import SheetMaker
+        self.win, self.path, self.hdr = win, path, hdr
+        c = dict(config.DEFAULTS.get("sheet", {}), **(win.cfg.get("sheet") or {}))
+        self.setWindowTitle(t("sheet") + " — " + APP_TITLE)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 18, 22, 16)
+        lay.addWidget(_head(t("sheet"), "fa6s.table-cells"))
+        lay.addWidget(_hint(t("sheet_hint", os.path.basename(path))))
+        form = QFormLayout()
+        row = QHBoxLayout()
+        self.cols = QSpinBox()
+        self.cols.setRange(1, 10)
+        self.cols.setValue(int(c.get("cols", 4)))
+        self.rows = QSpinBox()
+        self.rows.setRange(1, 20)
+        self.rows.setValue(int(c.get("rows", 5)))
+        row.addWidget(self.cols)
+        row.addWidget(QLabel("×"))
+        row.addWidget(self.rows)
+        self.count = QLabel("")
+        row.addWidget(self.count)
+        row.addStretch(1)
+        form.addRow(t("sheet_grid"), row)
+        self.cols.valueChanged.connect(lambda _v: self._count())
+        self.rows.valueChanged.connect(lambda _v: self._count())
+        self.width_ = _combo(((1280, "1280"), (1920, "1920"), (2560, "2560"), (3840, "3840")), int(c.get("width", 1920)))
+        form.addRow(t("sheet_width"), self.width_)
+        self.fmt = _combo((("jpg", "JPEG"), ("png", "PNG"), ("webp", "WebP")), c.get("format", "jpg"))
+        form.addRow(t("sheet_format"), self.fmt)
+        self.stamp = _check(t("sheet_stamp"), c.get("stamp", True))
+        self.header = _check(t("sheet_header"), c.get("header", True))
+        form.addRow("", self.stamp)
+        form.addRow("", self.header)
+        lay.addLayout(form)
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 1000)
+        self.bar.hide()
+        lay.addWidget(self.bar)
+        self.state = _hint("")
+        self.state.setOpenExternalLinks(False)
+        self.state.linkActivated.connect(self._link)
+        lay.addWidget(self.state)
+        bb = QDialogButtonBox()
+        self.b_go = bb.addButton(t("sheet_make"), QDialogButtonBox.AcceptRole)
+        self.b_stop = bb.addButton(t("sheet_stop"), QDialogButtonBox.ActionRole)
+        self.b_close = bb.addButton(QDialogButtonBox.Close)
+        self.b_stop.hide()
+        self.b_go.clicked.connect(lambda: self.start())
+        self.b_stop.clicked.connect(lambda: self._stop())
+        self.b_close.clicked.connect(self.reject)
+        lay.addWidget(bb)
+        self.maker = SheetMaker(win.mpvmod, bool(win.cfg.get("hwdec", True)), self)
+        self.maker.progress.connect(lambda k, n: self.bar.setValue(int(1000 * k / max(1, n))))
+        self.maker.done.connect(self._done)
+        self.out = ""
+        self._count()
+
+    def _count(self):
+        self.count.setText("  " + t("sheet_frames", self.cols.value() * self.rows.value()))
+
+    def folder(self) -> str:
+        import os
+        d = self.win.cfg.get("screenshot_dir") or os.path.join(winint.pictures_dir(), "ArtCore Player")
+        return os.path.expanduser(d)
+
+    def start(self):
+        from .sheet import sheet_path
+        opts = {"cols": self.cols.value(), "rows": self.rows.value(), "width": self.width_.currentData(),
+                "format": self.fmt.currentData(), "stamp": self.stamp.isChecked(), "header": self.header.isChecked()}
+        self.win.cfg["sheet"] = opts
+        config.save(self.win.cfg)
+        self.out = sheet_path(self.folder(), self.path, opts["format"])
+        self.bar.setValue(0)
+        self.bar.show()
+        self.b_go.setEnabled(False)
+        self.b_stop.show()
+        self.state.setText(t("sheet_running"))
+        self.maker.make(self.path, self.out, cols=opts["cols"], rows=opts["rows"], width=opts["width"], hdr=self.hdr,
+                        stamp=opts["stamp"], header=opts["header"])
+
+    def _stop(self):
+        self.maker.stop = True
+        self.state.setText(t("sheet_stopping"))
+
+    def _done(self, path: str, err: str):
+        import os
+        self.b_go.setEnabled(True)
+        self.b_stop.hide()
+        self.made = path
+        if path:
+            self.bar.setValue(1000)
+            self.state.setText(t("sheet_done", os.path.basename(path)) +
+                               f"  <a href='open'>{t('sheet_open')}</a> · <a href='folder'>{t('show_in_folder')}</a>")
+        else:
+            self.bar.hide()
+            self.state.setText(t("sheet_stopped") if err == "stopped" else "✗ " + err)
+
+    def _link(self, what: str):
+        if what == "open" and self.out:
+            os.startfile(self.out) if hasattr(os, "startfile") else None   # noqa: B018
+        elif what == "folder" and self.out:
+            winint.show_in_explorer(self.out)
+
+    def reject(self):
+        self.maker.stop = True
+        super().reject()

@@ -1020,6 +1020,17 @@ class PlayerWindow(QMainWindow):
         except Exception as e:
             self.toast.show_text(t("shot_fail", e), 2500)
 
+    def sheet_dialog(self):
+        """A sheet of frames from the whole video in one picture (Ctrl+Shift+S)."""
+        if not self.path or not os.path.exists(self.path):          # a local file only (not a stream)
+            return None
+        from .dialogs import SheetDialog
+        vp = self._get("video-params", {}) or {}
+        d = SheetDialog(self, self.path, str(vp.get("gamma") or "") in ("pq", "hlg"))
+        self._sheet_dlg = d
+        d.show()
+        return d
+
     def toggle_stats(self):
         try:
             self.mpv.command("script-binding", "stats/display-stats-toggle")
@@ -1509,6 +1520,7 @@ class PlayerWindow(QMainWindow):
         a.setChecked(bool(self.cfg.get("on_top")))
         m.addSeparator()
         m.addAction(style.icon("fa6s.camera"), t("screenshot") + "\tCtrl+S", self.screenshot)
+        m.addAction(style.icon("fa6s.table-cells"), t("sheet") + "…\tCtrl+Shift+S", lambda: self.sheet_dialog())
         m.addAction(style.icon("fa6s.circle-info"), t("stats") + "\tI", self.toggle_stats)
         if self.path and os.path.exists(self.path):
             m.addAction(style.icon("fa6s.folder-open"), t("show_in_folder"), lambda: winint.show_in_explorer(self.path))
@@ -1956,6 +1968,8 @@ class PlayerWindow(QMainWindow):
             self.toggle_mute()
         elif k == Qt.Key_A:
             self.cycle("audio")
+        elif k == Qt.Key_S and ctrl and e.modifiers() & Qt.ShiftModifier:
+            self.sheet_dialog()
         elif k == Qt.Key_S and ctrl:
             self.screenshot()
         elif k == Qt.Key_S:
