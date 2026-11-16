@@ -464,7 +464,7 @@ def _windows_name() -> str:
 KEYS = [
     ("Space / K", "k_pause"), ("F, Enter, " + "double-click", "k_full"), ("Esc", "k_esc"),
     ("← →", "k_seekstep"), ("Ctrl + ← →", "k_seek10"), ("Shift + ← →", "k_seek60"), ("0 … 9", "k_percent"),
-    ("Home", "k_home"), (". ,", "k_frame"), ("↑ ↓ / wheel", "k_vol"), ("M", "k_mute"),
+    ("Home", "k_home"), (". ,", "k_frame"), ("Ctrl + G", "k_goto"), ("Ctrl + Shift + C", "k_copytime"), ("↑ ↓ / wheel", "k_vol"), ("M", "k_mute"),
     ("A", "k_audio"), ("S", "k_subs"), ("Z / X", "k_subdelay"), ("[ ]  Backspace", "k_speed"),
     ("PgUp / PgDn", "k_chapters"), ("Shift + PgUp / PgDn, P / N", "k_prevnext"), ("C", "k_chapter_list"),
     ("E", "k_eq"), ("D", "k_dialog"), ("U", "k_upmix"), ("Ctrl + Z / X", "k_audiodelay"), ("B", "k_ab"), ("V", "k_picture"),
