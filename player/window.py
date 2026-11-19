@@ -1362,6 +1362,60 @@ class PlayerWindow(QMainWindow):
         if had and not quiet:
             self.toast.show_text(t("ab_off"), 1300)
 
+    # ── cut the A–B segment / hand the file to ArtCore Convert ─
+    def _clip_streams(self) -> tuple[str, bool, bool]:
+        """(ffmpeg -map for the audio on now, has a real video track, HDR picture)."""
+        tracks = self._get("track-list", []) or []
+        sel = next((tr for tr in tracks if tr.get("type") == "audio" and tr.get("selected")), None)
+        if sel and not sel.get("external") and sel.get("ff-index") is not None:
+            amap = f"0:{int(sel['ff-index'])}"
+        else:
+            amap = "0:a:0?"
+        has_video = any(tr.get("type") == "video" and not tr.get("albumart") for tr in tracks)
+        vp = self._get("video-params", {}) or {}
+        hdr = str(vp.get("gamma", "")).lower() in ("pq", "hlg") if isinstance(vp, dict) else False
+        return amap, has_video, hdr
+
+    def cut_clip(self):
+        """Menu → Cut clip…: the A–B segment into a file (ffmpeg)."""
+        if not self.path or self.disc or not os.path.isfile(self.path):
+            self.toast.show_text(t("clip_no_file"), 2600)
+            return
+        a, b = self.seekbar.loop
+        if a is None or b is None:
+            self.toast.show_text(t("clip_need_ab"), 3000)
+            return
+        dlg = getattr(self, "_clip_dlg", None)
+        if dlg is not None and dlg.isVisible():          # one at a time
+            dlg.raise_()
+            dlg.activateWindow()
+            return
+        from . import clip
+        ff = clip.find_ffmpeg(self.cfg) or clip.ask_ffmpeg(self, self.cfg)
+        if not ff:
+            return
+        amap, has_video, hdr = self._clip_streams()
+        self._clip_dlg = clip.ClipDialog(self, ff, self.path, a, b, self.cfg,
+                                         audio_map=amap, has_video=has_video, hdr=hdr)
+        self._clip_dlg.show()
+
+    def open_in_convert(self):
+        """Menu → Open in ArtCore Convert: the current file in one action."""
+        if not self.path or not os.path.isfile(self.path):
+            self.toast.show_text(t("clip_no_file"), 2600)
+            return
+        from PySide6.QtCore import QProcess
+        from . import clip
+        exe = clip.find_convert(self.cfg) or clip.ask_convert(self, self.cfg)
+        if not exe:
+            return
+        args = [self.path]
+        a, b = self.seekbar.loop
+        if a is not None and b is not None:            # the A–B segment opens on Convert's Trim tab
+            args += [f"--start={a:.3f}", f"--end={b:.3f}"]       # "=" form: an older Convert simply ignores them
+        if not QProcess.startDetached(exe, args, os.path.dirname(exe)):
+            self.toast.show_text(t("convert_fail"), 3000)
+
     # ── menus ─────────────────────────────────────────────────
     @staticmethod
     def _track_label(tr: dict) -> str:
@@ -1602,6 +1656,8 @@ class PlayerWindow(QMainWindow):
         a, b = self.seekbar.loop
         ab_txt = t("ab_menu_set_a") if a is None else t("ab_menu_set_b") if b is None else t("ab_menu_clear")
         m.addAction(style.icon("fa6s.arrows-left-right-to-line"), ab_txt + "\tB", self.ab_step)
+        if self.path and not self.disc and os.path.isfile(self.path):
+            m.addAction(style.icon("fa6s.scissors"), t("clip_cut"), self.cut_clip)
         rep = self.cfg.get("repeat", "off")
         self._fill_repeat_menu(m.addMenu(style.icon("fa6s.repeat", style.ACCENT_LIGHT if rep != "off" else style.TEXT),
                                          t("set_repeat") + ("" if rep == "off" else " · " + t("rep_" + rep)) + "\tR"))
@@ -1621,6 +1677,8 @@ class PlayerWindow(QMainWindow):
         m.addAction(style.icon("fa6s.table-cells"), t("sheet") + "…\tCtrl+Shift+S", lambda: self.sheet_dialog())
         m.addAction(style.icon("fa6s.location-crosshairs"), t("goto") + "…\tCtrl+G", lambda: self.goto_dialog())
         m.addAction(style.icon("fa6s.copy"), t("copy_time") + "\tCtrl+Shift+C", lambda: self.copy_time())
+        if self.path and not self.disc and os.path.isfile(self.path):
+            m.addAction(style.icon("fa6s.arrow-up-right-from-square"), t("convert_open"), self.open_in_convert)
         m.addAction(style.icon("fa6s.circle-info"), t("stats") + "\tI", self.toggle_stats)
         if self.path and os.path.exists(self.path):
             m.addAction(style.icon("fa6s.folder-open"), t("show_in_folder"), lambda: winint.show_in_explorer(self.path))
