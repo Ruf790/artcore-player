@@ -2233,6 +2233,12 @@ class PlayerWindow(QMainWindow):
                 pass
 
     def closeEvent(self, e):
+        dlg = getattr(self, "_clip_dlg", None)
+        if dlg is not None and dlg.proc is not None:         # 1.7.1: a clip still being made (a long GIF…)
+            if QMessageBox.question(self, t("clip_title"), t("clip_ask_close")) != QMessageBox.Yes:
+                e.ignore()
+                return
+            dlg.reject()                                     # ffmpeg stopped, the half-written file removed
         self._save_position()
         self.cfg["geometry"] = bytes(self.saveGeometry().toBase64()).decode() if not self.isFullScreen() else self.cfg.get("geometry", "")
         config.save(self.cfg)
