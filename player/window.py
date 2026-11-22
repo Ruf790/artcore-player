@@ -802,6 +802,8 @@ class PlayerWindow(QMainWindow):
         out = []
         h = int(vp.get("h") or vt.get("demux-h") or 0)
         w = int(vp.get("w") or vt.get("demux-w") or 0)
+        if h > w:                      # 1.7.2: a vertical video — 736×1280 is 720p, 1080×1920 is 1080p
+            w, h = h, w
         if w >= 3800 or h >= 2100:
             out.append(("4K", False))
         elif w >= 2500 or h >= 1400:

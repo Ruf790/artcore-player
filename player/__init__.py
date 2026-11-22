@@ -1,6 +1,6 @@
 """ArtCore Player — a video player on the mpv engine (libmpv) with a Qt interface."""
-VERSION_TUPLE = (1, 7, 1, 0)
-VERSION       = "1.7.1"
+VERSION_TUPLE = (1, 7, 2, 0)
+VERSION       = "1.7.2"
 APP_TITLE     = "ArtCore Player"
 APP_ID        = "ArtCore.Player"
 REPO          = "Ruf790/artcore-player"
