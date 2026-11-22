@@ -406,6 +406,8 @@ STRINGS = {
     "clip_done":      ("Готово: {0}", "Done: {0}"),
     "clip_failed":    ("Ошибка ffmpeg:\n{0}", "ffmpeg error:\n{0}"),
     "clip_canceled":  ("Отменено", "Canceled"),
+    "clip_ask_close": ("Клип ещё создаётся. Остановить его и закрыть плеер?\n\nНедописанный файл будет удалён.",
+                       "The clip is still being made. Stop it and close the player?\n\nThe unfinished file will be deleted."),
     "clip_bad_path":  ("Укажите существующую папку и имя файла", "Choose an existing folder and a file name"),
     "clip_same":      ("Нельзя записывать поверх исходного файла — выберите другое имя",
                        "Can't overwrite the source file — choose another name"),
